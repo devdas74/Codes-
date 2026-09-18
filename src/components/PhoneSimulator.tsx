@@ -1,19 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
-  Lock,
-  Unlock,
   Battery,
   Wifi,
-  PowerOff,
-  RefreshCw,
   Search,
-  MessageSquare,
   Camera,
   Phone,
   Settings,
-  GripVertical,
   Upload,
   Sparkles,
+  Layers,
+  Zap,
+  FileVideo,
+  PowerOff,
+  RefreshCw,
+  ShieldAlert,
+  Move,
+  GripVertical,
+  ChevronRight,
+  ChevronLeft,
+  X,
+  Gauge,
+  Sliders,
+  Play,
 } from 'lucide-react';
 import { EngineSettings, EngineTelemetry } from '../types';
 import { renderWallpaperFrame } from '../engine/proceduralWallpapers';
@@ -23,11 +32,12 @@ interface PhoneSimulatorProps {
   telemetry: EngineTelemetry;
   onUpdateTelemetry: (updater: (prev: EngineTelemetry) => EngineTelemetry) => void;
   onToggleKillSwitch: () => void;
-  screenView: 'home' | 'lock';
-  onSetScreenView: (view: 'home' | 'lock') => void;
+  screenView?: 'home';
+  onSetScreenView?: (view: 'home') => void;
   uploadedVideoUrl?: string | null;
   uploadedVideoName?: string | null;
   onCustomVideoUploaded?: (url: string, name: string) => void;
+  onUpdateSettings?: (updater: (prev: EngineSettings) => EngineSettings) => void;
 }
 
 export default function PhoneSimulator({
@@ -40,143 +50,119 @@ export default function PhoneSimulator({
   uploadedVideoUrl,
   uploadedVideoName,
   onCustomVideoUploaded,
+  onUpdateSettings,
 }: PhoneSimulatorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const animFrameIdRef = useRef<number | null>(null);
   const chassisRef = useRef<HTMLDivElement | null>(null);
+  const screenRef = useRef<HTMLDivElement | null>(null);
 
-  // Ping-pong loop state
+  // Continuous loop state
   const progressRef = useRef<number>(0);
-  const directionRef = useRef<'forward' | 'reverse'>('forward');
   const lastTimeRef = useRef<number>(performance.now());
   const frameCountRef = useRef<number>(0);
   const fpsTimerRef = useRef<number>(performance.now());
-  const telemetryTimerRef = useRef<number>(performance.now());
-
-  // Reverse frame buffer for ultra-smooth 60 FPS video reverse without decoder seek stutter
-  const reverseFramesRef = useRef<ImageBitmap[]>([]);
-  const isBufferingReverseRef = useRef<boolean>(false);
-  const reverseFrameIndexRef = useRef<number>(0);
-
-  // Pre-buffer reverse frames whenever a custom video is uploaded or loaded
-  useEffect(() => {
-    if (!uploadedVideoUrl) {
-      // Clear previous frames
-      reverseFramesRef.current.forEach(f => {
-        try { f.close(); } catch {}
-      });
-      reverseFramesRef.current = [];
-      return;
-    }
-
-    let isCancelled = false;
-
-    const bufferReverseVideo = async () => {
-      try {
-        isBufferingReverseRef.current = true;
-        const tempVid = document.createElement('video');
-        tempVid.src = uploadedVideoUrl;
-        tempVid.crossOrigin = 'anonymous';
-        tempVid.muted = true;
-        tempVid.playsInline = true;
-
-        await new Promise<void>((resolve, reject) => {
-          tempVid.onloadedmetadata = () => resolve();
-          tempVid.onerror = reject;
-        });
-
-        const duration = tempVid.duration;
-        if (!duration || duration > 30 || isCancelled) {
-          isBufferingReverseRef.current = false;
-          return;
-        }
-
-        // Extract frames maintaining native aspect ratio
-        const frameStep = 1 / 30;
-        const framesCount = Math.min(300, Math.floor(duration / frameStep));
-        const offscreen = document.createElement('canvas');
-        const vW = tempVid.videoWidth || 720;
-        const vH = tempVid.videoHeight || 1280;
-        offscreen.width = vW;
-        offscreen.height = vH;
-        const ctx = offscreen.getContext('2d');
-        if (!ctx) return;
-
-        const captured: ImageBitmap[] = [];
-
-        for (let i = framesCount - 1; i >= 0; i--) {
-          if (isCancelled) break;
-          const targetSec = i * frameStep;
-          tempVid.currentTime = targetSec;
-          await new Promise<void>(res => {
-            const onSeek = () => {
-              tempVid.removeEventListener('seeked', onSeek);
-              res();
-            };
-            tempVid.addEventListener('seeked', onSeek);
-          });
-          ctx.drawImage(tempVid, 0, 0, vW, vH);
-          const bitmap = await createImageBitmap(offscreen);
-          captured.push(bitmap);
-        }
-
-        if (!isCancelled && captured.length > 0) {
-          reverseFramesRef.current.forEach(f => {
-            try { f.close(); } catch {}
-          });
-          reverseFramesRef.current = captured;
-        }
-      } catch (e) {
-        console.warn('Could not pre-buffer reverse frames:', e);
-      } finally {
-        isBufferingReverseRef.current = false;
-      }
-    };
-
-    bufferReverseVideo();
-
-    return () => {
-      isCancelled = true;
-      reverseFramesRef.current.forEach(f => {
-        try { f.close(); } catch {}
-      });
-      reverseFramesRef.current = [];
-    };
-  }, [uploadedVideoUrl]);
 
   // Drag and drop video file state
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
-  // Movable Thin HUD Bar State (Merged with right edge, vertically draggable)
-  const [barPosY, setBarPosY] = useState<number>(160);
-  const [isDraggingBar, setIsDraggingBar] = useState(false);
-  const dragStartYRef = useRef<{ startY: number; initialY: number }>({
-    startY: 0,
-    initialY: 160,
+  // Gyro parallax offset ref directly updated in renderLoop (single rAF thread for max efficiency)
+  const smoothedGyroRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const targetGyroRef = useRef<{ x: number; y: number; hasRealGyro: boolean }>({ x: 0, y: 0, hasRealGyro: false });
+
+  // 4-Direction Moveable Sidebar State with Magnetic Edge Merging
+  const [dockPos, setDockPos] = useState<{ x: number; y: number; side: 'left' | 'right'; isDocked: boolean }>({
+    x: 100, // 0 (left) to 100 (right) percentage
+    y: 42,  // 10 to 88 percentage
+    side: 'right',
+    isDocked: true,
+  });
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState<boolean>(false);
+  const [isDraggingDock, setIsDraggingDock] = useState<boolean>(false);
+
+  const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number; moved: boolean }>({
+    clientX: 0,
+    clientY: 0,
+    startX: 100,
+    startY: 42,
+    moved: false,
   });
 
-  // Gyro parallax offset (moves text 10 to 20 px with gyro / tilt)
-  const [gyroOffset, setGyroOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const smoothedGyroRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Multidirectional Drag Handlers: Move Left, Right, Up, Down & Merge with Edge
+  const handleDockPointerDown = (e: React.PointerEvent, isTapToggle: boolean = false) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsDraggingDock(true);
+    dragStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startX: dockPos.x,
+      startY: dockPos.y,
+      moved: false,
+    };
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      const deltaScreenX = moveEvent.clientX - dragStartRef.current.clientX;
+      const deltaScreenY = moveEvent.clientY - dragStartRef.current.clientY;
+
+      if (Math.abs(deltaScreenX) > 3 || Math.abs(deltaScreenY) > 3) {
+        dragStartRef.current.moved = true;
+      }
+
+      if (screenRef.current) {
+        const rect = screenRef.current.getBoundingClientRect();
+        const deltaPercentX = (deltaScreenX / rect.width) * 100;
+        const deltaPercentY = (deltaScreenY / rect.height) * 100;
+
+        const nextX = Math.max(0, Math.min(100, dragStartRef.current.startX + deltaPercentX));
+        const nextY = Math.max(12, Math.min(86, dragStartRef.current.startY + deltaPercentY));
+
+        setDockPos({
+          x: nextX,
+          y: nextY,
+          side: nextX < 50 ? 'left' : 'right',
+          isDocked: false,
+        });
+      }
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      setIsDraggingDock(false);
+
+      // When it's not in the exact middle, or on any drag/touch release, automatically snap & merge to the nearest edge
+      setDockPos(prev => {
+        const nearestSide: 'left' | 'right' = prev.x <= 50 ? 'left' : 'right';
+        return {
+          ...prev,
+          x: nearestSide === 'left' ? 0 : 100,
+          side: nearestSide,
+          isDocked: true,
+        };
+      });
+
+      if (!dragStartRef.current.moved && isTapToggle) {
+        setIsSidebarExpanded(prev => !prev);
+      }
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
 
   // Listen to mobile device orientation with deadband and low-pass smoothing
-  // Fixes jumping from left to right when the phone is held flat or lying down
   useEffect(() => {
-    let animId: number | null = null;
-    let targetX = 0;
-    let targetY = 0;
-    let hasRealGyro = false;
-
     const handleOrientation = (e: DeviceOrientationEvent) => {
       if (e.gamma !== null && e.beta !== null) {
-        hasRealGyro = true;
         const beta = e.beta; // [-180, 180] Pitch
         const gamma = e.gamma; // [-90, 90] Roll
 
-        // When the device is lying flat or nearly flat on a table/bed (|beta| < 25 deg or |beta| > 155 deg),
-        // Euler angle sensors experience gimbal flip where gamma erratically fluctuates between +90 and -90.
-        // We smoothly taper dampening to 0 around horizontal orientations to keep the display completely centered.
         const pitchAbs = Math.abs(beta);
         let flatDampening = 1;
         if (pitchAbs < 25) {
@@ -185,107 +171,42 @@ export default function PhoneSimulator({
           flatDampening = Math.max(0, (170 - pitchAbs) / 15);
         }
 
-        // When flat, zero out roll/pitch instability completely so it rests centered without snapping
         const effectiveGamma = gamma * flatDampening;
-
-        // Upright reference angle is ~45-55 deg
         const uprightDeltaBeta = (beta - 48) * flatDampening;
 
-        // Clamp smoothly to [-18px, 18px] range
         const rawX = Math.max(-18, Math.min(18, (effectiveGamma / 25) * 16));
         const rawY = Math.max(-18, Math.min(18, (uprightDeltaBeta / 25) * 14));
 
-        targetX = rawX;
-        targetY = rawY;
+        targetGyroRef.current = { x: rawX, y: rawY, hasRealGyro: true };
       }
     };
 
-    // Exponential smoothing tick (0.14 lerp) prevents abrupt discrete jumps
-    const smoothLoop = () => {
-      const current = smoothedGyroRef.current;
-      if (hasRealGyro) {
-        const nextX = current.x + (targetX - current.x) * 0.14;
-        const nextY = current.y + (targetY - current.y) * 0.14;
-        smoothedGyroRef.current = { x: nextX, y: nextY };
-        setGyroOffset({
-          x: Math.round(nextX * 10) / 10,
-          y: Math.round(nextY * 10) / 10,
-        });
-      }
-
-      animId = requestAnimationFrame(smoothLoop);
-    };
-
-    window.addEventListener('deviceorientation', handleOrientation);
-    animId = requestAnimationFrame(smoothLoop);
+    window.addEventListener('deviceorientation', handleOrientation, { passive: true });
 
     return () => {
       window.removeEventListener('deviceorientation', handleOrientation);
-      if (animId) cancelAnimationFrame(animId);
     };
   }, []);
 
   // Screen pointer movement simulating gyroscope on desktop
   const handleScreenPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isDraggingBar) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const relX = ((e.clientX - rect.left) / rect.width - 0.5) * 2; // -1 to +1
     const relY = ((e.clientY - rect.top) / rect.height - 0.5) * 2; // -1 to +1
-    const targetX = Math.round(relX * 18); // 10 to 20 px range
+    const targetX = Math.round(relX * 18);
     const targetY = Math.round(relY * 16);
-    smoothedGyroRef.current = { x: targetX, y: targetY };
-    setGyroOffset({ x: targetX, y: targetY });
+    targetGyroRef.current = { x: targetX, y: targetY, hasRealGyro: true };
   };
 
   const handleScreenPointerLeave = () => {
-    smoothedGyroRef.current = { x: 0, y: 0 };
-    setGyroOffset({ x: 0, y: 0 });
+    targetGyroRef.current = { x: 0, y: 0, hasRealGyro: true };
   };
 
-  // Current wallpaper ID based on screenView
-  const currentWallpaperId =
-    screenView === 'lock'
-      ? settings.lockScreenWallpaperId
-      : settings.homeScreenWallpaperId;
+  // Current wallpaper ID (Dedicated Home Screen)
+  const currentWallpaperId = settings.homeScreenWallpaperId;
 
   // Active loop duration in seconds
   const loopDurationSec = 8.0 / settings.playbackSpeed;
-
-  // Movable Bar Pointer Event Handlers (Vertical edge slider)
-  const handleBarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // If clicking directly on a button, do not initiate drag
-    if ((e.target as HTMLElement).closest('button')) {
-      return;
-    }
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setIsDraggingBar(true);
-    dragStartYRef.current = {
-      startY: e.clientY,
-      initialY: barPosY,
-    };
-  };
-
-  const handleBarPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingBar) return;
-    const dy = e.clientY - dragStartYRef.current.startY;
-    // Constrain sliding vertically along right edge between top status bar and bottom nav
-    const newY = Math.max(38, Math.min(480, dragStartYRef.current.initialY + dy));
-    setBarPosY(newY);
-  };
-
-  const handleBarPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isDraggingBar) {
-      setIsDraggingBar(false);
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {}
-    }
-  };
-
-  const handleResetBarPosition = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setBarPosY(160);
-  };
 
   // Drag & Drop File Handlers on Phone Screen
   const handleDragOver = (e: React.DragEvent) => {
@@ -357,183 +278,120 @@ export default function PhoneSimulator({
       const deltaMs = now - lastTimeRef.current;
       lastTimeRef.current = now;
 
-      // Throttle if targeting 24 or 30 FPS
-      const targetInterval = 1000 / settings.fpsTarget;
+      // Dynamic Adaptive FPS Governor (Automatic FPS Reduction on System Load)
+      let effectiveCap = settings.fpsTarget;
+      let loadStatusText: 'Nominal' | 'Moderate Load (-25%)' | 'Heavy Load (-50%)' | 'Thermal Throttled (-66%)' = 'Nominal';
+
+      if (settings.autoFpsMode) {
+        if (settings.simulatedSystemLoad === 'moderate') {
+          effectiveCap = settings.fpsTarget === 90 ? 60 : settings.fpsTarget === 60 ? 45 : 30;
+          loadStatusText = 'Moderate Load (-25%)';
+        } else if (settings.simulatedSystemLoad === 'heavy') {
+          effectiveCap = settings.fpsTarget === 90 ? 45 : 30;
+          loadStatusText = 'Heavy Load (-50%)';
+        } else if (settings.simulatedSystemLoad === 'overheat') {
+          effectiveCap = 30;
+          loadStatusText = 'Thermal Throttled (-66%)';
+        }
+      }
+
+      // Throttle rendering according to effective FPS cap
+      const targetInterval = 1000 / effectiveCap;
       if (deltaMs < targetInterval * 0.85) {
         animFrameIdRef.current = requestAnimationFrame(renderLoop);
         return;
       }
 
-      // FPS Calculation
+      // In-frame smooth gyro parallax interpolation
+      if (targetGyroRef.current.hasRealGyro) {
+        const cur = smoothedGyroRef.current;
+        const tgt = targetGyroRef.current;
+        cur.x += (tgt.x - cur.x) * 0.14;
+        cur.y += (tgt.y - cur.y) * 0.14;
+      }
+
+      // FPS Calculation (Throttled calculation to avoid React thrashing)
       frameCountRef.current++;
-      if (now - fpsTimerRef.current >= 600) {
+      if (now - fpsTimerRef.current >= 800) {
         const measuredFps = Math.round((frameCountRef.current * 1000) / (now - fpsTimerRef.current));
         frameCountRef.current = 0;
         fpsTimerRef.current = now;
 
+        const effectiveFps = Math.min(measuredFps, effectiveCap);
         const baseBatteryDrain =
-          settings.fpsTarget === 60 ? 3.6 : settings.fpsTarget === 30 ? 2.1 : 1.3;
+          effectiveCap === 90
+            ? 4.2
+            : effectiveCap === 60
+            ? 3.6
+            : effectiveCap === 45
+            ? 2.8
+            : 2.1;
+
+        const drain = settings.amoledBlackCrush
+          ? parseFloat((baseBatteryDrain * 0.65).toFixed(1))
+          : baseBatteryDrain;
 
         onUpdateTelemetry(prev => ({
           ...prev,
-          currentFps: Math.min(measuredFps, settings.fpsTarget),
+          currentFps: effectiveFps,
+          effectiveFpsCap: effectiveCap,
           frameTimeMs: parseFloat(deltaMs.toFixed(1)),
-          batteryDrainPerHour: settings.amoledBlackCrush
-            ? parseFloat((baseBatteryDrain * 0.65).toFixed(1))
-            : baseBatteryDrain,
+          batteryDrainPerHour: drain,
+          progress: progressRef.current,
+          systemLoadStatus: loadStatusText,
         }));
       }
 
-      // Advance ping-pong progress
+      // Advance loop progress
       const dtSec = deltaMs / 1000;
       const progressDelta = dtSec / loopDurationSec;
 
-      if (directionRef.current === 'forward') {
-        progressRef.current += progressDelta;
-        if (progressRef.current >= 1.0) {
-          progressRef.current = 1.0;
-          if (settings.pingPongLoop) {
-            directionRef.current = 'reverse';
-          } else {
-            progressRef.current = 0.0;
-          }
-          onUpdateTelemetry(prev => ({ ...prev, loopCount: prev.loopCount + 1 }));
-        }
-      } else {
-        // Reverse playback
-        progressRef.current -= progressDelta;
-        if (progressRef.current <= 0.0) {
-          progressRef.current = 0.0;
-          directionRef.current = 'forward';
-          onUpdateTelemetry(prev => ({ ...prev, loopCount: prev.loopCount + 1 }));
-        }
+      progressRef.current += progressDelta;
+      if (progressRef.current >= 1.0) {
+        progressRef.current = progressRef.current % 1.0;
       }
 
       // Render wallpaper / sync video playback
       if (currentWallpaperId === 'custom_uploaded' && uploadedVideoUrl) {
-        const canvas = canvasRef.current;
         const video = videoRef.current;
-        const ctx = canvas?.getContext('2d');
+        if (video && video.readyState >= 2) {
+          const maxAllowedSec = 30.0;
+          const rawDuration = video.duration || 5;
+          const duration = Math.min(rawDuration, maxAllowedSec);
+          const trimStart = Math.max(0, Math.min(settings.trimStartSec, duration - 0.5));
+          const trimEnd = Math.min(
+            settings.trimEndSec > 0 ? settings.trimEndSec : duration,
+            duration,
+            maxAllowedSec
+          );
+          const current = video.currentTime;
 
-        if (settings.pingPongLoop) {
-          // Ping-Pong Mode: Forward plays native video; Reverse plays pre-extracted buffer
-          if (directionRef.current === 'forward') {
-            if (video && video.readyState >= 2) {
-              const duration = video.duration || 5;
-              const trimStart = Math.min(settings.trimStartSec, duration - 0.5);
-              const trimEnd = settings.trimEndSec > 0 ? Math.min(settings.trimEndSec, duration) : duration;
-              const current = video.currentTime;
-
-              if (video.paused && !settings.killSwitchActive) {
-                video.play().catch(() => {});
-              }
-
-              const prog = Math.max(0, Math.min(1, (current - trimStart) / Math.max(0.1, trimEnd - trimStart)));
-              progressRef.current = prog;
-
-              if (current >= trimEnd - 0.08 || video.ended) {
-                directionRef.current = 'reverse';
-                reverseFrameIndexRef.current = 0;
-                if (!video.paused) video.pause();
-                onUpdateTelemetry(prev => ({ ...prev, loopCount: prev.loopCount + 1 }));
-              }
-            }
-          } else {
-            // Reverse phase: Stream cached reverse frames with 60 FPS precision & zero decoder stutter
-            const frames = reverseFramesRef.current;
-            if (frames && frames.length > 0 && canvas && ctx) {
-              const frameIdx = Math.min(
-                frames.length - 1,
-                Math.floor(reverseFrameIndexRef.current)
-              );
-              const frame = frames[frameIdx];
-              if (frame) {
-                // Precise object-cover math to match HTML5 video object-cover framing
-                const cW = canvas.width;
-                const cH = canvas.height;
-                const fW = frame.width;
-                const fH = frame.height;
-                const canvasAspect = cW / cH;
-                const frameAspect = fW / fH;
-
-                let sX = 0, sY = 0, sW = fW, sH = fH;
-                if (frameAspect > canvasAspect) {
-                  // Frame is wider than canvas: crop sides
-                  sW = fH * canvasAspect;
-                  sX = (fW - sW) / 2;
-                } else {
-                  // Frame is taller than canvas: crop top/bottom
-                  sH = fW / canvasAspect;
-                  sY = (fH - sH) / 2;
-                }
-
-                ctx.drawImage(frame, sX, sY, sW, sH, 0, 0, cW, cH);
-              }
-
-              // Advance reverse frame index smoothly based on delta time & playback speed
-              const framesPerSec = 30 * settings.playbackSpeed;
-              reverseFrameIndexRef.current += (deltaMs / 1000) * framesPerSec;
-
-              const prog = 1.0 - Math.min(1, reverseFrameIndexRef.current / frames.length);
-              progressRef.current = prog;
-
-              if (reverseFrameIndexRef.current >= frames.length - 1) {
-                directionRef.current = 'forward';
-                reverseFrameIndexRef.current = 0;
-                if (video) {
-                  const duration = video.duration || 5;
-                  const trimStart = Math.min(settings.trimStartSec, duration - 0.5);
-                  video.currentTime = trimStart;
-                  if (!settings.killSwitchActive) {
-                    video.play().catch(() => {});
-                  }
-                }
-                onUpdateTelemetry(prev => ({ ...prev, loopCount: prev.loopCount + 1 }));
-              }
-            } else {
-              // Fallback if reverse buffer still building
-              directionRef.current = 'forward';
-              if (video) {
-                const duration = video.duration || 5;
-                video.currentTime = Math.min(settings.trimStartSec, duration - 0.5);
-                if (!settings.killSwitchActive) video.play().catch(() => {});
-              }
-            }
+          if (video.paused && !settings.killSwitchActive) {
+            video.play().catch(() => {});
           }
-        } else {
-          // Standard forward loop mode - 100% native smooth decoder
-          if (video && video.readyState >= 2) {
-            const duration = video.duration || 5;
-            const trimStart = Math.min(settings.trimStartSec, duration - 0.5);
-            const trimEnd = settings.trimEndSec > 0 ? Math.min(settings.trimEndSec, duration) : duration;
-            const current = video.currentTime;
 
-            if (video.paused && !settings.killSwitchActive) {
-              video.play().catch(() => {});
-            }
-
-            if (trimEnd < duration - 0.05 && current >= trimEnd) {
-              video.currentTime = trimStart;
-              onUpdateTelemetry(prev => ({ ...prev, loopCount: prev.loopCount + 1 }));
-            }
-
-            const prog = Math.max(0, Math.min(1, (current - trimStart) / Math.max(0.1, trimEnd - trimStart)));
-            progressRef.current = prog;
-            directionRef.current = 'forward';
+          if (current >= trimEnd || current >= maxAllowedSec) {
+            video.currentTime = trimStart;
           }
+
+          const prog = Math.max(0, Math.min(1, (current - trimStart) / Math.max(0.1, trimEnd - trimStart)));
+          progressRef.current = prog;
         }
       } else {
-        // Procedural High-Density Canvas
+        // High-Density Canvas with Cached 2D Context
         const canvas = canvasRef.current;
         if (canvas) {
-          const ctx = canvas.getContext('2d');
+          if (!canvasCtxRef.current) {
+            canvasCtxRef.current = canvas.getContext('2d', { alpha: false });
+          }
+          const ctx = canvasCtxRef.current;
           if (ctx) {
             renderWallpaperFrame(currentWallpaperId, {
               ctx,
               width: canvas.width,
               height: canvas.height,
               progress: progressRef.current,
-              direction: directionRef.current,
+              direction: 'forward',
               time: now * 0.001,
               amoledBlackCrush: settings.amoledBlackCrush,
               lockText: settings.lockScreenMainText,
@@ -542,16 +400,6 @@ export default function PhoneSimulator({
             });
           }
         }
-      }
-
-      // Throttle telemetry updates to ~20Hz (every 50ms) to preserve 60 FPS GPU/render loop without React state thrashing
-      if (now - telemetryTimerRef.current >= 50) {
-        telemetryTimerRef.current = now;
-        onUpdateTelemetry(prev => ({
-          ...prev,
-          progress: progressRef.current,
-          direction: directionRef.current,
-        }));
       }
 
       animFrameIdRef.current = requestAnimationFrame(renderLoop);
@@ -567,7 +415,6 @@ export default function PhoneSimulator({
     settings.killSwitchActive,
     settings.fpsTarget,
     settings.playbackSpeed,
-    settings.pingPongLoop,
     settings.amoledBlackCrush,
     settings.lockScreenMainText,
     settings.lockScreenSubText,
@@ -603,20 +450,19 @@ export default function PhoneSimulator({
 
         {/* POCO Screen Bezel with Gyro & Touch tracking */}
         <div
+          ref={screenRef}
           onPointerMove={handleScreenPointerMove}
           onPointerLeave={handleScreenPointerLeave}
           className="relative w-full h-full rounded-[38px] overflow-hidden bg-black flex flex-col border border-neutral-800/80"
         >
-          {/* Main 60 FPS Wallpaper Canvas (renders procedural themes OR reverse frame buffer for ping-pong) */}
+          {/* Main 60 FPS Wallpaper Canvas (renders procedural themes) */}
           <canvas
             ref={canvasRef}
             width={340}
             height={690}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-150 ${
               currentWallpaperId === 'custom_uploaded'
-                ? settings.pingPongLoop && directionRef.current === 'reverse'
-                  ? 'opacity-100 z-20'
-                  : 'opacity-0 z-0 pointer-events-none'
+                ? 'opacity-0 pointer-events-none'
                 : 'opacity-100 z-10'
             }`}
             style={{
@@ -624,7 +470,7 @@ export default function PhoneSimulator({
             }}
           />
 
-          {/* Direct Hardware Accelerated Video Player for Forward Phase & Normal Loop */}
+          {/* Direct Hardware Accelerated Video Player for Continuous Loop */}
           {uploadedVideoUrl && (
             <video
               ref={videoRef}
@@ -634,7 +480,7 @@ export default function PhoneSimulator({
               playsInline
               muted
               autoPlay
-              loop={!settings.pingPongLoop}
+              loop
               onLoadedData={() => {
                 if (videoRef.current && !settings.killSwitchActive) {
                   videoRef.current.play().catch(() => {});
@@ -692,297 +538,388 @@ export default function PhoneSimulator({
             </div>
           )}
 
-          {/* Top Status Bar (POCO MIUI / HyperOS) */}
-          <div className="relative z-30 w-full pt-3 px-6 pb-1 flex items-center justify-between text-white/90 text-xs font-semibold">
-            {/* Clock */}
-            <span className="tracking-wide text-[11px] font-mono">12:45</span>
-
-            {/* POCO Center Punch-hole Camera */}
-            <div className="w-3.5 h-3.5 rounded-full bg-black border border-neutral-700/60 shadow-inner flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-neutral-900" />
+          {/* POCO HyperOS / MIUI Top Status Bar */}
+          <div className="relative z-30 w-full pt-2.5 px-4 pb-1 flex items-center justify-between text-white/90 text-xs font-semibold select-none pointer-events-none">
+            {/* Left Clock */}
+            <div className="flex items-center gap-1.5">
+              <span className="tracking-wide text-[11px] font-mono">12:45</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
             </div>
 
-            {/* Icons: 5G, Wi-Fi, Battery */}
+            {/* Right Status Icons: 5G, Wi-Fi, Battery */}
             <div className="flex items-center gap-1.5 text-[10px]">
-              <span className="font-extrabold text-[9px] text-cyan-400 tracking-tighter">5G</span>
-              <Wifi className="w-3.5 h-3.5 text-white/80" />
-              <Battery className="w-4 h-4 text-emerald-400 fill-emerald-400/40" />
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* THIN EDGE-MERGED MOVABLE HUD BAR (WITH INTEGRATED KILL SWITCH)             */}
-          {/* Merged with right edge, sleek vertical profile, sliding along the bezel   */}
-          {/* ========================================================================= */}
-          <div
-            id="movable-right-hud-bar"
-            onPointerDown={handleBarPointerDown}
-            onPointerMove={handleBarPointerMove}
-            onPointerUp={handleBarPointerUp}
-            style={{
-              top: `${barPosY}px`,
-            }}
-            className={`absolute z-40 right-0 w-9 rounded-l-2xl border-l border-y border-r-0 bg-neutral-950/85 backdrop-blur-xl flex flex-col items-center py-2 px-1 shadow-2xl transition-colors touch-none cursor-grab active:cursor-grabbing select-none ${
-              isDraggingBar
-                ? 'border-cyan-400 ring-1 ring-cyan-500/40 bg-neutral-900/95'
-                : settings.killSwitchActive
-                ? 'border-rose-500/80 ring-1 ring-rose-500/40'
-                : 'border-neutral-700/70 hover:border-neutral-500'
-            }`}
-            title="Edge Sidebar: Drag up/down along edge. Tap button for Panic Kill Switch."
-          >
-            {/* Movable Drag Grip Handle */}
-            <div className="w-full flex justify-center py-0.5 text-neutral-400 hover:text-white">
-              <GripVertical className="w-3.5 h-3.5" />
-            </div>
-
-            {/* EMERGENCY KILL SWITCH (Integrated inside edge-merged thin bar) */}
-            <button
-              id="movable-hud-kill-switch"
-              onClick={e => {
-                e.stopPropagation();
-                onToggleKillSwitch();
-              }}
-              title={
-                settings.killSwitchActive
-                  ? 'Engine is KILLED! Tap to re-arm'
-                  : 'PANIC KILL SWITCH: Tap to freeze wallpaper engine'
-              }
-              className={`w-7 h-7 mt-1 rounded-xl flex items-center justify-center transition-all duration-200 shadow-md ${
-                settings.killSwitchActive
-                  ? 'bg-rose-600 text-white animate-pulse ring-1 ring-rose-400'
-                  : 'bg-neutral-900 hover:bg-rose-950/80 text-rose-400 border border-rose-500/40 hover:border-rose-400 active:scale-90'
-              }`}
-            >
-              <PowerOff className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Hairline Divider */}
-            <div className="w-4 h-[1px] bg-neutral-800 my-1.5" />
-
-            {/* Live 60 FPS Indicator */}
-            <div className="flex flex-col items-center leading-none text-center">
-              <span
-                className={`w-1 h-1 rounded-full ${
-                  settings.killSwitchActive
-                    ? 'bg-neutral-600'
-                    : telemetry.currentFps >= 50
-                    ? 'bg-emerald-400 animate-pulse'
-                    : 'bg-cyan-400 animate-pulse'
-                }`}
-              />
-              <span
-                className={`font-mono font-bold text-[9px] mt-0.5 ${
-                  settings.killSwitchActive
-                    ? 'text-neutral-500'
-                    : telemetry.currentFps >= 50
-                    ? 'text-emerald-400'
-                    : 'text-cyan-400'
-                }`}
-              >
-                {telemetry.currentFps}
-              </span>
-              <span className="text-[6px] font-mono text-neutral-500">FPS</span>
-            </div>
-
-            {/* Ping-Pong Mini Flow Indicator */}
-            <div className="my-1.5 flex flex-col items-center">
-              <span
-                className={`text-[8px] font-mono font-bold ${
-                  telemetry.direction === 'forward' ? 'text-cyan-400' : 'text-pink-400'
-                }`}
-                title={`Ping-Pong Direction: ${telemetry.direction}`}
-              >
-                {telemetry.direction === 'forward' ? '▲' : '▼'}
-              </span>
-              <div className="w-1 h-4 bg-neutral-800 rounded-full overflow-hidden mt-0.5">
-                <div
-                  className={`w-full transition-all duration-75 ${
-                    telemetry.direction === 'forward' ? 'bg-cyan-400' : 'bg-pink-400'
-                  }`}
-                  style={{ height: `${Math.round(telemetry.progress * 100)}%` }}
-                />
+              <span className="font-extrabold text-[8px] text-cyan-400 tracking-tighter">5G</span>
+              <Wifi className="w-3 h-3 text-white/80" />
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] font-mono text-neutral-300">88%</span>
+                <Battery className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/40" />
               </div>
             </div>
-
-            {/* Battery Drain Rate */}
-            <div className="flex flex-col items-center text-[7px] font-mono text-emerald-400/90 leading-none">
-              <Battery className="w-2.5 h-2.5 mb-0.5" />
-              <span>{telemetry.batteryDrainPerHour}%</span>
-            </div>
-
-            {/* Snap Reset Button */}
-            <button
-              onClick={handleResetBarPosition}
-              title="Reset handle to default position"
-              className="mt-1.5 p-0.5 text-neutral-600 hover:text-neutral-300 transition-colors"
-            >
-              <RefreshCw className="w-2 h-2" />
-            </button>
           </div>
 
-          {/* Screen Content: LOCK SCREEN vs HOME SCREEN */}
-          <div className="relative z-20 flex-1 flex flex-col justify-between p-6">
-            {screenView === 'lock' ? (
-              /* ================= SIMPLIFIED CLEAN LOCK SCREEN ================= */
-              <div className="flex-1 flex flex-col justify-between py-5 animate-fade-in select-none">
-                {/* Minimal Lock Header: Clean Clock & Date */}
-                <div className="text-center pt-2">
-                  <h1 className="text-5xl font-light text-white tracking-tight drop-shadow-md font-sans">
-                    12:45
-                  </h1>
-                  <p className="text-xs text-neutral-300 font-medium drop-shadow mt-1">
-                    Thursday, September 17
-                  </p>
-                </div>
+          {/* Minimal Clean Hardware Punch-Hole Camera Cutout (Centered & Non-Obtrusive) */}
+          <div
+            id="hardware-camera-notch"
+            className="absolute top-2.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-neutral-950 border border-neutral-800 z-30 flex items-center justify-center shadow-inner pointer-events-none"
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-950 border border-neutral-900" />
+          </div>
 
-                {/* Center: Simplified Clean "It's locked for a reason" with Gyro Parallax (10-20px) */}
-                <div className="my-auto text-center px-4 py-8 flex flex-col items-center justify-center">
+          {/* ========================================================================= */}
+          {/* 4-DIRECTION MOVEABLE SIDEBAR DOCK (Snaps & Merges with Screen Edge on Touch) */}
+          {/* ========================================================================= */}
+          <div
+            id="wallpaper-movable-sidebar"
+            style={{
+              top: `${dockPos.y}%`,
+              ...(dockPos.isDocked
+                ? dockPos.side === 'left'
+                  ? { left: isSidebarExpanded ? '12px' : '0px', right: 'auto' }
+                  : { right: isSidebarExpanded ? '12px' : '0px', left: 'auto' }
+                : { left: `clamp(100px, ${dockPos.x}%, calc(100% - 100px))` }),
+              transform: dockPos.isDocked
+                ? 'translateY(-50%)'
+                : 'translate(-50%, -50%)',
+              touchAction: 'none',
+            }}
+            className={`absolute z-50 select-none ${
+              isDraggingDock ? 'cursor-grabbing scale-105 shadow-2xl' : 'transition-all duration-300 ease-out'
+            }`}
+          >
+            <AnimatePresence mode="wait">
+              {/* 1. COLLAPSED VERTICAL HANDLE (Merged Seamlessly into Phone Edge) */}
+              {!isSidebarExpanded ? (
+                <motion.div
+                  key="collapsed-dock-handle"
+                  id="sidebar-dock-handle"
+                  initial={{ opacity: 0, scale: 0.85, x: dockPos.side === 'left' ? -20 : 20 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, x: dockPos.side === 'left' ? -20 : 20 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+                  onPointerDown={(e) => handleDockPointerDown(e, true)}
+                  title="Drag in any direction (Left, Right, Up, Down). Tap to expand vertical Kill Switch panel."
+                  className={`flex flex-col items-center justify-center py-2.5 px-1 cursor-grab active:cursor-grabbing bg-neutral-950/85 hover:bg-black/95 backdrop-blur-2xl border border-white/20 shadow-2xl transition-all ${
+                    dockPos.isDocked
+                      ? dockPos.side === 'left'
+                        ? 'rounded-r-2xl border-l-0 pl-1.5 pr-2'
+                        : 'rounded-l-2xl border-r-0 pl-2 pr-1.5'
+                      : 'rounded-2xl px-1.5 border'
+                  } ${
+                    settings.killSwitchActive
+                      ? 'border-rose-500/80 bg-rose-950/80 shadow-[0_0_15px_rgba(244,63,94,0.35)]'
+                      : 'hover:border-cyan-400/60'
+                  }`}
+                >
+                  {/* Top: 4-Way Move Icon */}
+                  <div className="flex flex-col items-center justify-center text-neutral-400 mb-1.5">
+                    <Move className="w-3 h-3 text-neutral-400 opacity-80" />
+                  </div>
+
+                  {/* Pulsing Status LED */}
                   <div
-                    id="gyro-lock-text-container"
-                    style={{
-                      transform: `translate3d(${gyroOffset.x}px, ${gyroOffset.y}px, 0)`,
-                      textShadow: `${-gyroOffset.x * 0.4}px ${-gyroOffset.y * 0.4}px 14px rgba(244, 63, 94, 0.45)`,
-                    }}
-                    className="transition-transform duration-100 ease-out flex flex-col items-center justify-center cursor-default"
+                    className={`w-2 h-2 rounded-full mb-1.5 ${
+                      settings.killSwitchActive
+                        ? 'bg-rose-500 animate-ping shadow-[0_0_8px_#ef4444]'
+                        : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                    }`}
+                  />
+
+                  {/* Vertical FPS / Killed Indicator */}
+                  <div className="flex flex-col items-center justify-center py-0.5 my-0.5">
+                    <span
+                      className={`text-[8px] font-mono font-black tracking-tight leading-tight ${
+                        settings.killSwitchActive ? 'text-rose-400 font-bold' : 'text-cyan-300'
+                      }`}
+                    >
+                      {settings.killSwitchActive ? 'OFF' : `${telemetry.currentFps}`}
+                    </span>
+                    <span className="text-[6px] font-mono text-neutral-400 uppercase tracking-tighter leading-none mt-0.5">
+                      {settings.killSwitchActive ? 'KILLED' : 'FPS'}
+                    </span>
+                  </div>
+
+                  {/* Expand Chevron Icon */}
+                  <div className="text-neutral-400 mt-1">
+                    {dockPos.side === 'right' && dockPos.isDocked ? (
+                      <ChevronLeft className="w-3 h-3" />
+                    ) : (
+                      <ChevronRight className="w-3 h-3" />
+                    )}
+                  </div>
+                </motion.div>
+              ) : (
+                /* 2. EXPANDED SIDEBAR PANEL WITH KILL ALL PROCESSES BUTTON (Smooth Spring Transition Fully on Screen) */
+                <motion.div
+                  key="expanded-dock-panel"
+                  id="sidebar-expanded-panel"
+                  initial={{
+                    opacity: 0,
+                    scale: 0.88,
+                    x: dockPos.side === 'left' ? -35 : 35,
+                    originX: dockPos.side === 'left' ? 0 : 1,
+                    originY: 0.5,
+                  }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{
+                    opacity: 0,
+                    scale: 0.88,
+                    x: dockPos.side === 'left' ? -35 : 35,
+                  }}
+                  transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-52 bg-neutral-950/95 backdrop-blur-2xl border border-white/25 rounded-2xl p-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] text-neutral-200 flex flex-col gap-2"
+                >
+                  {/* Panel Header & Move Handle */}
+                  <div
+                    onPointerDown={(e) => handleDockPointerDown(e, false)}
+                    title="Drag to move Left, Right, Up, or Down. Merges with edge on release."
+                    className="w-full flex items-center justify-between pb-1 border-b border-neutral-800 cursor-grab active:cursor-grabbing hover:bg-white/5 px-1 py-0.5 rounded-lg transition-colors"
                   >
-                    {/* Minimalist Lock Icon */}
-                    <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center text-white/80 mb-3 shadow">
-                      <Lock className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-1.5 text-neutral-300">
+                      <Move className="w-3.5 h-3.5 text-cyan-400" />
+                      <span className="text-[10px] font-bold tracking-tight text-white">
+                        Movable Edge Dock
+                      </span>
                     </div>
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => setIsSidebarExpanded(false)}
+                      className="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+                      title="Minimize and merge into edge"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
 
-                    {/* Ambient organic floating text (10-20px range) */}
-                    <div className="animate-gyro-float">
-                      <div className="text-xs sm:text-sm font-bold tracking-widest font-mono text-white uppercase text-center px-4 py-1.5 rounded-full bg-black/40 border border-white/15 backdrop-blur-md shadow-lg">
-                        {settings.lockScreenMainText}
+                  {/* PROMINENT "KILL ALL PROCESSES" BUTTON */}
+                  <button
+                    id="btn-kill-all-processes-sidebar"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleKillSwitch();
+                    }}
+                    className={`w-full py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer ${
+                      settings.killSwitchActive
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white border border-emerald-400/40 shadow-emerald-950/60 ring-2 ring-emerald-500/30'
+                        : 'bg-gradient-to-r from-rose-600 via-rose-700 to-red-800 hover:from-rose-500 hover:to-red-700 text-white border border-rose-400/50 shadow-rose-950/70 animate-pulse'
+                    }`}
+                    title={
+                      settings.killSwitchActive
+                        ? 'Re-arm wallpaper engine and resume render threads'
+                        : 'Instantly freeze all canvas loops, pause videos, drop GPU load to 0%'
+                    }
+                  >
+                    {settings.killSwitchActive ? (
+                      <>
+                        <Play className="w-4 h-4 fill-white text-white" />
+                        <div className="flex flex-col items-start text-left leading-tight">
+                          <span className="text-[11px] font-black tracking-tight">RESUME PROCESSES</span>
+                          <span className="text-[7px] text-emerald-200 font-mono">Engine is frozen</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <PowerOff className="w-4 h-4 text-white animate-pulse" />
+                        <div className="flex flex-col items-start text-left leading-tight">
+                          <span className="text-[11px] font-black tracking-tight">KILL ALL PROCESSES</span>
+                          <span className="text-[7px] text-rose-200 font-mono">0% CPU • Freeze All</span>
+                        </div>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Quick Status & Multiplier Grid */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {/* FPS Tile */}
+                    <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-1.5 flex flex-col items-center text-center">
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            settings.killSwitchActive
+                              ? 'bg-rose-500'
+                              : 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
+                          }`}
+                        />
+                        <span className="text-[7px] font-mono text-neutral-400 uppercase">FPS</span>
                       </div>
-                      {settings.lockScreenSubText && (
-                        <p className="text-[10px] font-mono tracking-wider text-rose-300/90 drop-shadow mt-2 text-center">
-                          {settings.lockScreenSubText}
-                        </p>
-                      )}
+                      <span
+                        className={`text-[11px] font-mono font-black ${
+                          settings.killSwitchActive ? 'text-rose-400' : 'text-emerald-400'
+                        }`}
+                      >
+                        {settings.killSwitchActive ? '0' : `${telemetry.currentFps}`}
+                      </span>
                     </div>
 
-                    {/* Subtle Gyro Parallax Live Indicator */}
-                    <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-[9px] font-mono text-neutral-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                      <span>
-                        Gyro Tilt:{' '}
-                        {Math.abs(gyroOffset.x) > 0.5 || Math.abs(gyroOffset.y) > 0.5
-                          ? `${gyroOffset.x > 0 ? '+' : ''}${Math.round(gyroOffset.x)}px, ${gyroOffset.y > 0 ? '+' : ''}${Math.round(gyroOffset.y)}px`
-                          : 'Centered (0px)'}
+                    {/* Battery Drain Tile */}
+                    <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-1.5 flex flex-col items-center text-center">
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <Battery className="w-2.5 h-2.5 text-cyan-400" />
+                        <span className="text-[7px] font-mono text-neutral-400 uppercase">DRAIN</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-cyan-300">
+                        {settings.killSwitchActive ? '0.1%' : `${telemetry.batteryDrainPerHour}%`}
                       </span>
                     </div>
                   </div>
-                </div>
 
-                {/* Simplified Swipe Up to Unlock Action */}
-                <div className="text-center pb-2">
-                  <button
-                    id="btn-simulate-unlock"
-                    onClick={() => onSetScreenView('home')}
-                    className="group mx-auto py-2 px-5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white font-medium text-xs flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
-                  >
-                    <Unlock className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
-                    <span>Swipe up or tap to unlock</span>
-                  </button>
+                  {/* Speed Multiplier Pill */}
+                  <div className="flex items-center justify-between bg-neutral-900/90 border border-neutral-800 rounded-xl px-2 py-1">
+                    <div className="flex items-center gap-1 text-neutral-400">
+                      <Gauge className="w-3 h-3 text-amber-400" />
+                      <span className="text-[9px] font-medium text-neutral-300">Speed</span>
+                    </div>
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => {
+                        if (onUpdateSettings) {
+                          const speeds = [0.5, 1.0, 1.5, 2.0];
+                          const nextIdx = (speeds.indexOf(settings.playbackSpeed) + 1) % speeds.length;
+                          onUpdateSettings(prev => ({ ...prev, playbackSpeed: speeds[nextIdx] }));
+                        }
+                      }}
+                      className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-md text-[9px] font-mono font-bold text-amber-300 cursor-pointer transition-colors"
+                      title="Cycle playback speed"
+                    >
+                      {settings.playbackSpeed}x
+                    </button>
+                  </div>
+
+                  {/* Dock Position / Edge Flip Controls */}
+                  <div className="pt-1 border-t border-neutral-800/80 flex items-center justify-between text-[8px] text-neutral-400 px-0.5">
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => {
+                        setDockPos(prev => {
+                          const nextSide = prev.side === 'right' ? 'left' : 'right';
+                          return {
+                            ...prev,
+                            x: nextSide === 'left' ? 0 : 100,
+                            side: nextSide,
+                            isDocked: true,
+                          };
+                        });
+                      }}
+                      className="px-2 py-1 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-cyan-300 border border-neutral-700/60 flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Flip edge (Snap to Left / Right)"
+                    >
+                      <Move className="w-2.5 h-2.5" />
+                      <span>Flip Side ({dockPos.side === 'right' ? 'Left' : 'Right'})</span>
+                    </button>
+
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => setIsSidebarExpanded(false)}
+                      className="px-2 py-1 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700/60 flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Merge into edge"
+                    >
+                      <span>Dock</span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Screen Content: AUTHENTIC POCO HOME SCREEN */}
+          <div className="relative z-20 flex-1 flex flex-col justify-between pt-12 pb-4 px-5 select-none">
+            {/* Top Section: Clock & Date Widget */}
+            <div className="flex flex-col items-center pt-2 text-center animate-fade-in">
+              <div className="text-4xl font-extralight tracking-tight text-white drop-shadow-lg font-sans">
+                12:45
+              </div>
+              <div className="text-[11px] font-medium text-neutral-300 drop-shadow mt-0.5">
+                Friday, September 18
+              </div>
+
+              {/* Minimal Search Bar Widget */}
+              <div className="w-full mt-4 py-1.5 px-3 rounded-full bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-between text-neutral-300 text-xs shadow-md">
+                <div className="flex items-center gap-2">
+                  <Search className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-[10px] text-neutral-400">Search apps & web...</span>
+                </div>
+                <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[9px] font-bold text-white">
+                  G
                 </div>
               </div>
-            ) : (
-              /* ================= HOME SCREEN VIEW ================= */
-              <div className="flex-1 flex flex-col justify-between py-3 animate-fade-in">
-                {/* Search Bar Widget */}
-                <div className="pt-2">
-                  <div className="w-full py-2 px-3.5 rounded-2xl bg-black/40 border border-white/15 backdrop-blur-md flex items-center justify-between text-neutral-300 text-xs shadow-md">
-                    <div className="flex items-center gap-2">
-                      <Search className="w-3.5 h-3.5 text-cyan-400" />
-                      <span className="text-[11px] text-neutral-400">Search apps & web...</span>
+            </div>
+
+            {/* Mid Section: 4x2 Home App Grid */}
+            <div className="my-auto grid grid-cols-4 gap-y-4 gap-x-3 px-1 py-4">
+              {[
+                { name: 'Gallery', icon: Sparkles, color: 'bg-gradient-to-tr from-amber-500 to-rose-500' },
+                { name: 'Themes', icon: Layers, color: 'bg-gradient-to-tr from-cyan-500 to-blue-600' },
+                { name: 'Security', icon: ShieldAlert, color: 'bg-gradient-to-tr from-emerald-500 to-teal-600' },
+                { name: 'Settings', icon: Settings, color: 'bg-gradient-to-tr from-neutral-600 to-neutral-800' },
+                { name: 'Music', icon: Zap, color: 'bg-gradient-to-tr from-orange-500 to-rose-600' },
+                { name: 'Files', icon: FileVideo, color: 'bg-gradient-to-tr from-blue-600 to-indigo-700' },
+                { name: 'Camera', icon: Camera, color: 'bg-gradient-to-tr from-rose-600 to-pink-700' },
+                { name: 'Browser', icon: Search, color: 'bg-gradient-to-tr from-teal-500 to-cyan-600' },
+              ].map((app, idx) => {
+                const IconComp = app.icon;
+                return (
+                  <div key={idx} className="flex flex-col items-center gap-1 group cursor-pointer">
+                    <div
+                      className={`w-11 h-11 rounded-2xl ${app.color} text-white flex items-center justify-center shadow-lg transform group-hover:scale-105 group-active:scale-90 transition-transform`}
+                    >
+                      <IconComp className="w-5 h-5" />
                     </div>
-                    <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">
-                      G
-                    </div>
+                    <span className="text-[10px] font-medium text-white drop-shadow-md">
+                      {app.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bottom Dock & Navigation Bar */}
+            <div className="flex flex-col gap-3">
+              {/* 4-Icon Bottom Dock */}
+              <div className="w-full py-2 px-3 rounded-3xl bg-black/40 border border-white/15 backdrop-blur-md grid grid-cols-4 gap-2 shadow-xl">
+                <div className="flex justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-md active:scale-90 transition-transform">
+                    <Phone className="w-5 h-5" />
                   </div>
                 </div>
-
-                {/* App Icons Grid */}
-                <div className="my-auto grid grid-cols-4 gap-4 py-8 px-2">
-                  {[
-                    { name: 'Phone', icon: Phone, color: 'bg-emerald-500' },
-                    { name: 'Messages', icon: MessageSquare, color: 'bg-blue-500' },
-                    { name: 'Camera', icon: Camera, color: 'bg-rose-500' },
-                    { name: 'Settings', icon: Settings, color: 'bg-neutral-600' },
-                  ].map((app, idx) => {
-                    const IconComp = app.icon;
-                    return (
-                      <div key={idx} className="flex flex-col items-center gap-1.5">
-                        <div
-                          className={`w-11 h-11 rounded-2xl ${app.color} text-white flex items-center justify-center shadow-lg transform active:scale-90 transition-transform`}
-                        >
-                          <IconComp className="w-5 h-5" />
-                        </div>
-                        <span className="text-[10px] font-medium text-white drop-shadow">
-                          {app.name}
-                        </span>
-                      </div>
-                    );
-                  })}
+                <div className="flex justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-600 flex items-center justify-center text-white shadow-md active:scale-90 transition-transform">
+                    <Search className="w-5 h-5" />
+                  </div>
                 </div>
-
-                {/* Lock Screen Return & Dock */}
-                <div className="pb-2 flex flex-col gap-2">
-                  <button
-                    id="btn-simulate-lock"
-                    onClick={() => onSetScreenView('lock')}
-                    className="w-full py-2 px-3 rounded-xl bg-black/40 hover:bg-black/60 border border-white/15 backdrop-blur-md text-neutral-300 font-medium text-[11px] flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Lock Device (View Lock Screen Wallpaper)</span>
-                  </button>
-
-                  {/* Android Navigation Gesture Bar */}
-                  <div className="w-28 h-1 rounded-full bg-white/70 mx-auto mt-2 shadow" />
+                <div className="flex justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md active:scale-90 transition-transform">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="flex justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-600 flex items-center justify-center text-white shadow-md active:scale-90 transition-transform">
+                    <Camera className="w-5 h-5" />
+                  </div>
                 </div>
               </div>
-            )}
+
+              {/* Android Gesture Pill Navigation */}
+              <div className="flex justify-center py-1">
+                <div className="w-28 h-1 bg-white/60 rounded-full shadow-sm" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Screen Mode Switcher & Quick Upload Bar Below Chassis */}
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-        <div className="flex items-center gap-1.5 bg-neutral-900/90 border border-neutral-800 p-1.5 rounded-2xl shadow-md">
-          <button
-            id="btn-tab-lock-screen"
-            onClick={() => onSetScreenView('lock')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-              screenView === 'lock'
-                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Lock Screen</span>
-          </button>
-
-          <button
-            id="btn-tab-home-screen"
-            onClick={() => onSetScreenView('home')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-              screenView === 'home'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Unlock className="w-3.5 h-3.5" />
-            <span>Home Screen</span>
-          </button>
+      {/* Quick Upload and Tip Bar Below Chassis */}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+        <div className="flex items-center gap-2 bg-neutral-900/90 border border-neutral-800 px-4 py-2 rounded-2xl shadow-md text-xs font-semibold text-cyan-300">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span>POCO Home Screen Live Wallpaper</span>
         </div>
 
         {/* Quick Upload Button */}
         {onCustomVideoUploaded && (
-          <label className="cursor-pointer px-3 py-2 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm">
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload Video</span>
+          <label className="cursor-pointer px-4 py-2 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center gap-2 transition-colors shadow-sm">
+            <Upload className="w-4 h-4" />
+            <span>Upload Your Video</span>
             <input
               type="file"
               accept="video/mp4,video/webm,video/quicktime,video/*"
@@ -1000,8 +937,9 @@ export default function PhoneSimulator({
       </div>
 
       <p className="text-[10px] text-neutral-500 mt-2 font-mono text-center">
-        Tip: The right sidebar is <strong className="text-neutral-400">thin & edge-merged</strong> (drag vertically). Move cursor or tilt phone to see the lock screen text move 10–20px with <strong className="text-neutral-400">gyro parallax</strong>.
+        Tip: <strong className="text-cyan-400">Drag the edge handle up/down</strong> to reposition anywhere along the screen edge, or <strong className="text-emerald-400">tap it</strong> to open the blended Wallpaper Edge Dock.
       </p>
     </div>
   );
 }
+

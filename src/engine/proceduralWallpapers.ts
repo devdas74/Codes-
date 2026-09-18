@@ -1,14 +1,14 @@
 /**
  * High-Density Procedural 60 FPS Wallpaper Visual Engine
- * Supports forward-to-reverse (Ping-Pong) seamless looping without jump-cuts.
+ * Supports continuous seamless 60 FPS hardware loop.
  */
 
 export interface RenderContext {
   ctx: CanvasRenderingContext2D;
   width: number;
   height: number;
-  progress: number; // 0.0 to 1.0 (forward or reverse)
-  direction: 'forward' | 'reverse';
+  progress: number; // 0.0 to 1.0
+  direction?: 'forward';
   time: number;
   amoledBlackCrush: boolean;
   lockText?: string;
@@ -16,7 +16,7 @@ export interface RenderContext {
   lockBadge?: string;
 }
 
-// Pre-seeded rain drops for deterministic ping-pong motion
+// Pre-seeded rain drops for deterministic continuous motion
 const RAIN_DROPS = Array.from({ length: 90 }, (_, i) => ({
   x: (i * 37) % 100,
   y: (i * 53) % 100,
@@ -36,7 +36,7 @@ export function renderWallpaperFrame(
   wallpaperId: string,
   rc: RenderContext
 ) {
-  const { ctx, width, height, progress, direction, time, amoledBlackCrush } = rc;
+  const { ctx, width, height, progress, time, amoledBlackCrush } = rc;
 
   ctx.save();
 
@@ -62,9 +62,6 @@ export function renderWallpaperFrame(
       drawAmoledMatrixGrid(ctx, width, height, progress, time);
       break;
   }
-
-  // Draw subtle ping-pong flow indicator in top corner (debug/ambient)
-  drawPingPongSubtleIndicator(ctx, width, direction, progress);
 
   ctx.restore();
 }
@@ -193,26 +190,26 @@ function drawCyberMegacity(
   const holoGlow = 0.5 + Math.sin(t * 1.8 + p * 2) * 0.25;
   ctx.fillStyle = `rgba(236, 72, 153, ${holoGlow * 0.8})`;
   ctx.shadowColor = '#ec4899';
-  ctx.shadowBlur = 16;
+  ctx.shadowBlur = 6;
   ctx.fillText('NEO 2099', w * 0.72, h * 0.28);
   ctx.font = '11px sans-serif';
   ctx.fillStyle = `rgba(6, 182, 212, ${holoGlow})`;
   ctx.shadowColor = '#06b6d4';
-  ctx.shadowBlur = 8;
-  ctx.fillText('CYBERNETIC HIGH DENSITY // 60 FPS', w * 0.72, h * 0.31);
+  ctx.shadowBlur = 3;
+  ctx.fillText('CYBERNETIC HIGH DENSITY // 90 FPS', w * 0.72, h * 0.31);
   ctx.restore();
 
-  // Dense diagonal rain particles
+  // Dense diagonal rain particles (Batched into a single draw call for 90 FPS throughput)
   ctx.strokeStyle = 'rgba(186, 230, 253, 0.25)';
   ctx.lineWidth = 1;
+  ctx.beginPath();
   RAIN_DROPS.forEach(rd => {
     const rx = ((rd.x + p * 40 * rd.speed) % 100) * 0.01 * w;
     const ry = ((rd.y + p * 120 * rd.speed) % 100) * 0.01 * h;
-    ctx.beginPath();
     ctx.moveTo(rx, ry);
     ctx.lineTo(rx - 5, ry + rd.length);
-    ctx.stroke();
   });
+  ctx.stroke();
 }
 
 /**
@@ -318,16 +315,16 @@ function drawTokyoRainStreet(
   ctx.fill();
   ctx.restore();
 
-  // Tangled Overhead Cables (Dense Tokyo aesthetic)
+  // Tangled Overhead Cables (Batched stroke)
   ctx.strokeStyle = '#1e1b4b';
   ctx.lineWidth = 1.8;
+  ctx.beginPath();
   for (let c = 0; c < 5; c++) {
-    ctx.beginPath();
     const sag = 20 + c * 8;
     ctx.moveTo(0, 30 + c * 25);
     ctx.quadraticCurveTo(w * 0.5, 30 + c * 25 + sag, w, 40 + c * 22);
-    ctx.stroke();
   }
+  ctx.stroke();
 
   // Vending Machine glowing softly on sidewalk
   const vmX = w * 0.24;
@@ -359,7 +356,7 @@ function drawNeonSign(
   ctx.font = `bold ${fontSize}px monospace`;
   ctx.fillStyle = color;
   ctx.shadowColor = color;
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 4;
   ctx.textAlign = 'center';
 
   if (!vertical) {
@@ -616,15 +613,15 @@ function drawAmoledMatrixGrid(
   ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
   ctx.lineWidth = 1.2;
 
-  // Radiating vertical lines
+  // Radiating vertical lines (Single batched stroke)
   const lines = 12;
+  ctx.beginPath();
   for (let i = 0; i <= lines; i++) {
     const xBottom = (i / lines) * w;
-    ctx.beginPath();
     ctx.moveTo(w * 0.5, vanishingY);
     ctx.lineTo(xBottom, h);
-    ctx.stroke();
   }
+  ctx.stroke();
 
   // Horizontal travelling grid lines with ping-pong flow
   const numHoriz = 16;
@@ -647,22 +644,4 @@ function drawAmoledMatrixGrid(
   ctx.beginPath();
   ctx.arc(w * 0.5, vanishingY, 65, 0, Math.PI * 2);
   ctx.fill();
-}
-
-/**
- * Ping-Pong Direction Indicator (Smooth micro badge)
- */
-function drawPingPongSubtleIndicator(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  direction: 'forward' | 'reverse',
-  progress: number
-) {
-  ctx.save();
-  ctx.font = 'bold 9px monospace';
-  ctx.fillStyle = direction === 'forward' ? 'rgba(56, 189, 248, 0.8)' : 'rgba(236, 72, 153, 0.8)';
-  ctx.textAlign = 'right';
-  const arrow = direction === 'forward' ? '▶ FWD' : '◀ REV';
-  ctx.fillText(`PING-PONG ${arrow} ${(progress * 100).toFixed(0)}%`, w - 16, 32);
-  ctx.restore();
 }

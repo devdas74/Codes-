@@ -1,8 +1,8 @@
 /**
  * Generates the complete, full-fidelity standalone single-file HTML document
  * containing all 5 procedural shaders, the full reverse frame-buffering engine with object-cover math,
- * mobile gyroscope sensors with anti-gimbal filtering, lock/home screen switcher, movable edge HUD,
- * and the entire 5-tab control panel.
+ * mobile gyroscope sensors with anti-gimbal filtering, dedicated POCO Home Screen layout, movable edge HUD,
+ * and the entire 4-tab control panel (Wallpapers & Video Upload, 60 FPS Engine, POCO HyperOS Guide, Native Kotlin APK code).
  */
 export function generateStandaloneHtml(): string {
   return `<!DOCTYPE html>
@@ -13,17 +13,6 @@ export function generateStandaloneHtml(): string {
   <title>POCO Pro 5G Live Wallpaper Simulator - Full Standalone Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @keyframes glitch {
-      0% { transform: translate(0); text-shadow: -2px 0 #00f0ff, 2px 0 #ff003c; }
-      20% { transform: translate(-2px, 2px); text-shadow: 2px 0 #00f0ff, -2px 0 #ff003c; }
-      40% { transform: translate(-2px, -2px); text-shadow: -2px 0 #00f0ff, 2px 0 #ff003c; }
-      60% { transform: translate(2px, 2px); text-shadow: 2px 0 #00f0ff, -2px 0 #ff003c; }
-      80% { transform: translate(2px, -2px); text-shadow: -2px 0 #00f0ff, 2px 0 #ff003c; }
-      100% { transform: translate(0); text-shadow: -2px 0 #00f0ff, 2px 0 #ff003c; }
-    }
-    .glitch-text {
-      animation: glitch 1.5s infinite linear alternate-reverse;
-    }
     .custom-scrollbar::-webkit-scrollbar {
       width: 5px;
       height: 5px;
@@ -37,28 +26,28 @@ export function generateStandaloneHtml(): string {
     }
   </style>
 </head>
-<body class="bg-neutral-950 text-neutral-100 min-h-screen flex flex-col items-center justify-start p-3 sm:p-6 font-sans selection:bg-amber-500 selection:text-black">
+<body class="bg-neutral-950 text-neutral-100 min-h-screen flex flex-col items-center justify-start p-3 sm:p-6 font-sans selection:bg-cyan-500 selection:text-black">
 
   <!-- Top Header Bar -->
   <header class="w-full max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-neutral-800">
     <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg">
+      <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-black text-lg">
         ⚡
       </div>
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-base font-bold text-white font-mono tracking-tight">POCO Pro 5G Wallpaper Engine</h1>
+          <h1 class="text-base font-bold text-white font-mono tracking-tight">POCO Pro 5G Live Wallpaper Engine</h1>
           <span class="px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-400 text-[10px] font-mono font-bold">STANDALONE 60 FPS</span>
         </div>
-        <p class="text-xs text-neutral-400">Zero Dependencies • Single File HTML • Hardware Accelerated</p>
+        <p class="text-xs text-neutral-400">Dedicated Home Screen • Zero Dependencies • Single File HTML • Hardware Accelerated</p>
       </div>
     </div>
 
     <div class="flex items-center gap-3">
-      <!-- Screen Mode Switcher -->
-      <div class="flex items-center bg-neutral-900 border border-neutral-800 p-1 rounded-xl">
-        <button id="btnLockMode" class="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-black shadow-sm transition-all">Lock Screen</button>
-        <button id="btnHomeMode" class="px-3 py-1 rounded-lg text-xs font-semibold text-neutral-400 hover:text-white transition-all">Home Screen</button>
+      <!-- Active Target Indicator -->
+      <div class="flex items-center bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-xl text-xs font-mono text-cyan-400 font-semibold gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+        <span>Target: POCO Home Screen</span>
       </div>
 
       <!-- Video Upload Button -->
@@ -96,30 +85,76 @@ export function generateStandaloneHtml(): string {
           <!-- Direct Hardware Video Element (Forward Playback) -->
           <video id="wallpaperVideo" class="absolute inset-0 w-full h-full object-cover z-10 hidden" playsinline muted></video>
 
-          <!-- Top Status Bar (5G / Battery / Time) -->
-          <div class="relative z-30 flex items-center justify-between text-[11px] font-mono font-medium text-neutral-300 pt-1 px-2 pointer-events-none">
-            <span id="statusBarTime">12:00</span>
-            <div class="flex items-center gap-1.5">
-              <span class="text-[9px] font-bold text-cyan-400">5G</span>
-              <span>88%</span>
+          <!-- Top Status Bar (MIUI/HyperOS style) -->
+          <div class="relative z-30 flex items-center justify-between text-[11px] font-mono font-medium text-neutral-300 pt-2 px-3 select-none pointer-events-none">
+            <span id="statusBarTime">12:45</span>
+            <div class="flex items-center gap-1.5 text-[10px]">
+              <span class="text-[8px] font-bold text-cyan-400">5G</span>
+              <span class="text-[9px]">88%</span>
             </div>
           </div>
 
-          <!-- LOCK SCREEN VIEW -->
-          <div id="viewLockScreen" class="relative z-20 flex flex-col items-center my-auto pointer-events-none transition-opacity duration-300">
-            <div class="text-5xl font-black text-neutral-100 font-mono tracking-tighter drop-shadow-md" id="lockClock">12:00</div>
-            <div class="text-xs text-neutral-300 font-mono mt-1 drop-shadow" id="lockDate">Thursday, September 17</div>
+          <!-- 4-DIRECTION MOVEABLE SIDEBAR DOCK (Snaps & Merges with Screen Edge) -->
+          <div id="wallpaperDock" style="top: 42%; right: 0; transform: translateY(-50%); touch-action: none;" class="absolute z-50 select-none transition-all duration-300 ease-out">
+            <!-- Collapsed Vertical Edge Handle -->
+            <div id="dockHandle" class="flex flex-col items-center justify-center py-2.5 px-1 rounded-l-2xl border border-r-0 border-white/20 bg-neutral-950/85 hover:bg-black/95 backdrop-blur-2xl shadow-2xl cursor-grab active:cursor-grabbing transition-transform duration-200">
+              <span class="text-neutral-400 text-[10px] mb-1">☩</span>
+              <div id="dockLed" class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] mb-1"></div>
+              <div class="flex flex-col items-center leading-none py-0.5 my-0.5">
+                <span id="dockFpsText" class="text-[8px] font-mono font-black text-cyan-300">60</span>
+                <span id="dockStatusText" class="text-[6px] font-mono text-neutral-400 uppercase tracking-tighter mt-0.5">FPS</span>
+              </div>
+              <span id="dockChevron" class="text-neutral-400 text-[9px] mt-1">◀</span>
+            </div>
 
-            <!-- Customizable Biometric Vault Box -->
-            <div id="lockCardBox" class="mt-12 p-3 bg-neutral-950/80 border border-rose-500/40 rounded-2xl backdrop-blur-md text-center max-w-[260px] shadow-2xl">
-              <div id="cardBadge" class="text-[9px] font-mono font-bold tracking-widest text-rose-400 uppercase">BIOMETRIC VAULT ENGAGED</div>
-              <div id="cardHeadline" class="text-xs font-black text-rose-500 glitch-text tracking-wider mt-1 uppercase font-mono leading-tight">IT'S LOCKED FOR A REASON</div>
-              <div id="cardSubtext" class="text-[9px] text-neutral-400 font-mono mt-1">NO UNAUTHORIZED ACCESS</div>
+            <!-- Expanded Sidebar Panel (Smooth animated expansion) -->
+            <div id="dockPanel" class="hidden w-48 bg-neutral-950/92 backdrop-blur-2xl border border-white/25 rounded-2xl p-2.5 shadow-2xl text-neutral-200 flex-col gap-2 mr-1 animate-scale-up">
+              <!-- Drag Header -->
+              <div id="dockGripHeader" class="w-full flex items-center justify-between pb-1 border-b border-neutral-800 cursor-grab active:cursor-grabbing hover:bg-white/5 px-1 py-0.5 rounded-lg">
+                <div class="flex items-center gap-1.5 text-neutral-300">
+                  <span class="text-cyan-400 text-xs">☩</span>
+                  <span class="text-[10px] font-bold tracking-tight text-white">Movable Edge Dock</span>
+                </div>
+                <button id="dockCloseBtn" class="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800">✕</button>
+              </div>
+
+              <!-- KILL ALL PROCESSES BUTTON -->
+              <button id="btnKillAllDock" class="w-full py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 hover:to-red-700 text-white border border-rose-400/50 cursor-pointer active:scale-95 transition-all">
+                <span class="text-sm">⏻</span>
+                <div class="flex flex-col items-start text-left leading-tight">
+                  <span id="killBtnLabel" class="text-[11px] font-black">KILL ALL PROCESSES</span>
+                  <span id="killBtnSub" class="text-[7px] text-rose-200 font-mono">0% CPU • Freeze All</span>
+                </div>
+              </button>
+
+              <!-- Quick Status Tile Grid -->
+              <div class="grid grid-cols-2 gap-1.5">
+                <div class="bg-neutral-900/90 border border-neutral-800 rounded-xl p-1.5 flex flex-col items-center text-center">
+                  <span class="text-[7px] font-mono text-neutral-400 uppercase">FPS</span>
+                  <span id="dockHudFps" class="text-[11px] font-mono font-black text-emerald-400">60</span>
+                </div>
+                <div class="bg-neutral-900/90 border border-neutral-800 rounded-xl p-1.5 flex flex-col items-center text-center">
+                  <span class="text-[7px] font-mono text-neutral-400 uppercase">DRAIN</span>
+                  <span id="dockHudDrain" class="text-[10px] font-mono font-bold text-cyan-300">3.6%</span>
+                </div>
+              </div>
+
+              <!-- Speed Multiplier -->
+              <div class="flex items-center justify-between bg-neutral-900/90 border border-neutral-800 rounded-xl px-2 py-1">
+                <span class="text-[9px] font-medium text-neutral-300">Speed</span>
+                <button id="dockSpeedBtn" class="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-md text-[9px] font-mono font-bold text-amber-300">1.0x</button>
+              </div>
+
+              <!-- Flip Edge / Dock Footer -->
+              <div class="pt-1 border-t border-neutral-800/80 flex items-center justify-between text-[8px] text-neutral-400 px-0.5">
+                <button id="dockFlipBtn" class="px-2 py-1 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-cyan-300 border border-neutral-700/60">Flip Side</button>
+                <button id="dockMinimizeBtn" class="px-2 py-1 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700/60">Dock</button>
+              </div>
             </div>
           </div>
 
-          <!-- HOME SCREEN VIEW -->
-          <div id="viewHomeScreen" class="relative z-20 hidden flex-col justify-between h-full pt-10 pb-4 pointer-events-none transition-opacity duration-300">
+          <!-- DEDICATED HOME SCREEN VIEW -->
+          <div id="viewHomeScreen" class="relative z-20 flex flex-col justify-between h-full pt-10 pb-4 pointer-events-none transition-opacity duration-300">
             <!-- App Grid -->
             <div class="grid grid-cols-4 gap-3 px-1 pt-6">
               <div class="flex flex-col items-center gap-1"><div class="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-lg">📞</div><span class="text-[9px] text-neutral-300 font-mono">Phone</span></div>
@@ -146,38 +181,27 @@ export function generateStandaloneHtml(): string {
             <div class="w-32 h-1 bg-neutral-400/60 rounded-full"></div>
           </div>
 
-          <!-- Movable Edge HUD Bar (Draggable) -->
-          <div id="edgeHudBar" class="absolute right-0 top-36 z-40 bg-neutral-950/90 border-l border-y border-neutral-700/80 rounded-l-xl p-2 flex flex-col gap-1.5 shadow-2xl backdrop-blur-md cursor-grab active:cursor-grabbing text-right">
-            <div class="flex items-center gap-1 justify-end">
-              <span id="hudFps" class="text-[10px] font-mono font-bold text-emerald-400">60 FPS</span>
-            </div>
-            <div class="text-[8px] font-mono text-neutral-400" id="hudDirection">FWD ▶</div>
-            <div class="text-[8px] font-mono text-cyan-400" id="hudLoops">Loops: 0</div>
-            <button id="hudKillBtn" class="mt-1 px-1.5 py-0.5 bg-rose-950 border border-rose-500/40 text-rose-300 text-[8px] font-mono font-bold rounded">KILL</button>
-          </div>
-
         </div>
       </div>
-      <span class="text-[11px] text-neutral-500 font-mono mt-3">POCO Pro 5G • 120Hz AMOLED DotDisplay</span>
+      <span class="text-[11px] text-neutral-500 font-mono mt-3">POCO M6 Pro 5G • 120Hz AMOLED DotDisplay</span>
     </div>
 
-    <!-- RIGHT: Complete 5-Tab Control Station (Lg: col-span-7) -->
+    <!-- RIGHT: Complete 4-Tab Control Station (Lg: col-span-7) -->
     <div class="lg:col-span-7 bg-neutral-900 border border-neutral-800 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col gap-5">
       
       <!-- Navigation Tabs -->
       <div class="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-neutral-800 custom-scrollbar">
-        <button data-tab="wallpapers" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-amber-500 text-black shadow-sm">1. Wallpapers</button>
-        <button data-tab="engine" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white">2. Engine Settings</button>
-        <button data-tab="locktext" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white">3. Lock Screen Text</button>
-        <button data-tab="telemetry" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white">4. Profiler</button>
-        <button data-tab="native_code" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white">5. Native APK Code</button>
+        <button data-tab="wallpapers" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500 text-black shadow-sm">1. Wallpapers & Video</button>
+        <button data-tab="engine" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white">2. 60 FPS Engine</button>
+        <button data-tab="pocoguide" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white">3. POCO HyperOS Guide</button>
+        <button data-tab="native_code" class="tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white">4. Kotlin APK Code</button>
       </div>
 
-      <!-- TAB 1: WALLPAPER PRESETS -->
+      <!-- TAB 1: WALLPAPER PRESETS & VIDEO UPLOAD -->
       <div id="tabContent_wallpapers" class="tab-pane flex flex-col gap-3">
         <div class="flex justify-between items-center text-xs font-mono text-neutral-400">
-          <span>SELECT HARDWARE SHADER PRESET</span>
-          <span class="text-amber-400">5 PROCEDURAL SHADERS</span>
+          <span>SELECT SHADER OR UPLOAD MP4</span>
+          <span class="text-cyan-400">HARDWARE ACCELERATED</span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="wallpapersGrid">
           <!-- Populated by JS -->
@@ -191,33 +215,33 @@ export function generateStandaloneHtml(): string {
           <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex flex-col gap-1.5">
             <div class="flex justify-between text-xs font-mono">
               <span class="text-neutral-400">Playback Speed</span>
-              <span id="labelSpeed" class="text-amber-400 font-bold">1.0x</span>
+              <span id="labelSpeed" class="text-cyan-400 font-bold">1.0x</span>
             </div>
-            <input type="range" id="inputSpeed" min="0.2" max="2.0" step="0.1" value="1.0" class="accent-amber-400 cursor-pointer">
+            <input type="range" id="inputSpeed" min="0.2" max="2.0" step="0.1" value="1.0" class="accent-cyan-400 cursor-pointer">
           </div>
           <!-- Brightness -->
           <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex flex-col gap-1.5">
             <div class="flex justify-between text-xs font-mono">
               <span class="text-neutral-400">Brightness</span>
-              <span id="labelBright" class="text-amber-400 font-bold">100%</span>
+              <span id="labelBright" class="text-cyan-400 font-bold">100%</span>
             </div>
-            <input type="range" id="inputBright" min="40" max="150" step="5" value="100" class="accent-amber-400 cursor-pointer">
+            <input type="range" id="inputBright" min="40" max="150" step="5" value="100" class="accent-cyan-400 cursor-pointer">
           </div>
           <!-- Contrast -->
           <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex flex-col gap-1.5">
             <div class="flex justify-between text-xs font-mono">
               <span class="text-neutral-400">Contrast</span>
-              <span id="labelContrast" class="text-amber-400 font-bold">100%</span>
+              <span id="labelContrast" class="text-cyan-400 font-bold">100%</span>
             </div>
-            <input type="range" id="inputContrast" min="60" max="150" step="5" value="100" class="accent-amber-400 cursor-pointer">
+            <input type="range" id="inputContrast" min="60" max="150" step="5" value="100" class="accent-cyan-400 cursor-pointer">
           </div>
           <!-- Saturation -->
           <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex flex-col gap-1.5">
             <div class="flex justify-between text-xs font-mono">
               <span class="text-neutral-400">Saturation</span>
-              <span id="labelSat" class="text-amber-400 font-bold">100%</span>
+              <span id="labelSat" class="text-cyan-400 font-bold">100%</span>
             </div>
-            <input type="range" id="inputSat" min="0" max="200" step="5" value="100" class="accent-amber-400 cursor-pointer">
+            <input type="range" id="inputSat" min="0" max="200" step="5" value="100" class="accent-cyan-400 cursor-pointer">
           </div>
         </div>
 
@@ -225,76 +249,61 @@ export function generateStandaloneHtml(): string {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800 text-xs font-mono">
           <label class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex items-center justify-between cursor-pointer">
             <span>Ping-Pong Reverse Loop</span>
-            <input type="checkbox" id="checkPingPong" checked class="accent-amber-400 w-4 h-4 rounded">
+            <input type="checkbox" id="checkPingPong" checked class="accent-cyan-400 w-4 h-4 rounded">
           </label>
           <label class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex items-center justify-between cursor-pointer">
             <span>AMOLED Black Crush</span>
-            <input type="checkbox" id="checkAmoled" class="accent-amber-400 w-4 h-4 rounded">
+            <input type="checkbox" id="checkAmoled" class="accent-cyan-400 w-4 h-4 rounded">
           </label>
           <label class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex items-center justify-between cursor-pointer">
             <span>Gyroscope Parallax 3D</span>
-            <input type="checkbox" id="checkGyro" checked class="accent-amber-400 w-4 h-4 rounded">
+            <input type="checkbox" id="checkGyro" checked class="accent-cyan-400 w-4 h-4 rounded">
           </label>
           <label class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl flex items-center justify-between cursor-pointer">
             <span>Interactive Touch Particles</span>
-            <input type="checkbox" id="checkParticles" checked class="accent-amber-400 w-4 h-4 rounded">
+            <input type="checkbox" id="checkParticles" checked class="accent-cyan-400 w-4 h-4 rounded">
           </label>
         </div>
       </div>
 
-      <!-- TAB 3: LOCK SCREEN TEXT CUSTOMIZER -->
-      <div id="tabContent_locktext" class="tab-pane hidden flex flex-col gap-4">
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-mono text-neutral-400">Main Warning Headline</label>
-          <input type="text" id="inputLockHeadline" value="IT'S LOCKED FOR A REASON" class="bg-neutral-950 border border-neutral-700 rounded-xl p-2.5 text-xs text-white font-mono focus:border-amber-400 outline-none">
+      <!-- TAB 3: POCO HYPEROS HOME SCREEN GUIDE -->
+      <div id="tabContent_pocoguide" class="tab-pane hidden flex flex-col gap-4 font-mono text-xs">
+        <div class="p-4 bg-neutral-950 border border-amber-500/30 rounded-2xl flex flex-col gap-2">
+          <div class="text-amber-400 font-bold text-sm">POCO M6 Pro 5G / HyperOS Setup Instructions</div>
+          <p class="text-neutral-300 leading-relaxed">
+            HyperOS restricts live video playback on the lock screen (photo only). This engine is specifically optimized for your <strong>POCO Home Screen</strong>.
+          </p>
         </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-mono text-neutral-400">Security Subtext</label>
-          <input type="text" id="inputLockSubtext" value="NO UNAUTHORIZED ACCESS" class="bg-neutral-950 border border-neutral-700 rounded-xl p-2.5 text-xs text-white font-mono focus:border-amber-400 outline-none">
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-mono text-neutral-400">Security Badge</label>
-          <input type="text" id="inputLockBadge" value="BIOMETRIC VAULT ENGAGED" class="bg-neutral-950 border border-neutral-700 rounded-xl p-2.5 text-xs text-white font-mono focus:border-amber-400 outline-none">
-        </div>
-        <label class="flex items-center gap-2 text-xs font-mono text-neutral-300 cursor-pointer pt-2">
-          <input type="checkbox" id="checkGlitch" checked class="accent-amber-400 w-4 h-4 rounded">
-          <span>Cyberpunk Glitch Text Animation</span>
-        </label>
-      </div>
 
-      <!-- TAB 4: REAL-TIME HARDWARE PROFILER -->
-      <div id="tabContent_telemetry" class="tab-pane hidden flex flex-col gap-4">
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
-          <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl text-center">
-            <div class="text-[10px] text-neutral-400">RENDER RATE</div>
-            <div id="telemetryFps" class="text-xl font-bold text-emerald-400 mt-1">60.0 FPS</div>
+        <div class="flex flex-col gap-2.5">
+          <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-[10px]">1</span>
+            <div>
+              <strong class="text-white">Apply Live Wallpaper to Home Screen:</strong>
+              <div class="text-neutral-400 text-[11px] mt-0.5">When applying via Xiaomi Themes or LiveWallpaperService, choose "Set on Home Screen".</div>
+            </div>
           </div>
-          <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl text-center">
-            <div class="text-[10px] text-neutral-400">FRAME TIME</div>
-            <div id="telemetryFrameTime" class="text-xl font-bold text-cyan-400 mt-1">16.6 ms</div>
+          <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-[10px]">2</span>
+            <div>
+              <strong class="text-white">Lock Screen Wallpaper:</strong>
+              <div class="text-neutral-400 text-[11px] mt-0.5">Use Xiaomi Wallpaper Carousel or any static high-res photo in Settings &gt; Wallpaper.</div>
+            </div>
           </div>
-          <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl text-center">
-            <div class="text-[10px] text-neutral-400">BATTERY DRAIN</div>
-            <div class="text-xl font-bold text-amber-400 mt-1">~0.7%/hr</div>
+          <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-[10px]">3</span>
+            <div>
+              <strong class="text-white">Battery Optimization Exemption:</strong>
+              <div class="text-neutral-400 text-[11px] mt-0.5">Settings &gt; Apps &gt; Manage Apps &gt; Set Battery Saver to "No restrictions" for smooth 60 FPS.</div>
+            </div>
           </div>
-          <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl text-center">
-            <div class="text-[10px] text-neutral-400">TOTAL LOOPS</div>
-            <div id="telemetryLoops" class="text-xl font-bold text-purple-400 mt-1">0</div>
-          </div>
-        </div>
-        <div class="p-4 bg-neutral-950 border border-neutral-800 rounded-2xl font-mono text-xs text-neutral-400">
-          <div class="text-white font-bold mb-2">POCO Hardware Specification:</div>
-          <div>• Device: POCO Pro 5G (HyperOS / MIUI 14)</div>
-          <div>• Screen: 6.67" AMOLED DotDisplay (2400 x 1080)</div>
-          <div>• Engine: SurfaceView Direct OpenGL / Canvas 2D</div>
-          <div>• Battery: 5,000 mAh Li-Po High-Efficiency Mode</div>
         </div>
       </div>
 
-      <!-- TAB 5: NATIVE ANDROID KOTLIN CODE -->
+      <!-- TAB 4: NATIVE ANDROID KOTLIN CODE -->
       <div id="tabContent_native_code" class="tab-pane hidden flex flex-col gap-3">
         <div class="flex justify-between items-center text-xs font-mono text-neutral-400">
-          <span>KOTLIN LIVEWALLPAPERSERVICE ENGINE</span>
+          <span>KOTLIN LIVEWALLPAPERSERVICE ENGINE (HOME SCREEN)</span>
           <button id="btnCopyKotlin" class="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-[10px]">Copy Kotlin</button>
         </div>
         <pre class="p-4 bg-neutral-950 border border-neutral-800 rounded-2xl text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-80 custom-scrollbar"><code>package com.poco.livewallpaper
@@ -302,25 +311,24 @@ export function generateStandaloneHtml(): string {
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
+import android.media.MediaPlayer
 
-class PocoLiveWallpaperService : WallpaperService() {
-    override fun onCreateEngine(): Engine = PocoWallpaperEngine()
+class PocoHomeLiveWallpaperService : WallpaperService() {
+    override fun onCreateEngine(): Engine = PocoHomeWallpaperEngine()
 
-    inner class PocoWallpaperEngine : Engine() {
+    inner class PocoHomeWallpaperEngine : Engine() {
         private var isVisible = false
         private var loopCount = 0
-        private var time = 0.0f
-        private var direction = 1
+        private var isReverse = false
 
         override fun onVisibilityChanged(visible: Boolean) {
             this.isVisible = visible
-            if (visible) start60FpsLoop()
+            if (visible) start60FpsPlayback()
         }
 
-        private fun start60FpsLoop() {
-            // Hardware SurfaceView 60 FPS Direct Loop
+        private fun start60FpsPlayback() {
+            // Hardware SurfaceView 60 FPS Direct Loop on Home Screen
         }
     }
 }</code></pre>
@@ -335,13 +343,11 @@ class PocoLiveWallpaperService : WallpaperService() {
       { id: 'cyber_megacity_2099', name: 'Neo-Kowloon Megacity 2099', desc: 'Vertical cyberpunk metropolis with sky-trains, holo-ads & rain.' },
       { id: 'tokyo_rain_street', name: 'Shinjuku Neon Rain Alley', desc: 'Narrow Tokyo street with ramen lanterns & wet asphalt reflections.' },
       { id: 'anime_twilight_shinkai', name: 'Twilight Crossing (Anime)', desc: 'Makoto Shinkai sunset clouds, train signals & distant skyline.' },
-      { id: 'locked_reason_cyber', name: 'Classified Lock Vault', desc: 'Biometric HUD with security warnings & iris pulse aura.' },
       { id: 'cyber_grid_matrix', name: 'AMOLED Zero Data Grid', desc: 'Pure black AMOLED grid with traveling optical horizon pulses.' }
     ];
 
     // --- STATE ---
     let currentWallpaperId = 'cyber_megacity_2099';
-    let isHomeMode = false;
     let isKilled = false;
     let playbackSpeed = 1.0;
     let brightness = 100;
@@ -353,7 +359,6 @@ class PocoLiveWallpaperService : WallpaperService() {
     let particlesEnabled = true;
     let direction = 'forward'; // 'forward' | 'reverse'
     let progress = 0;
-    let time = 0;
     let loopCount = 0;
 
     let uploadedVideoUrl = null;
@@ -370,23 +375,231 @@ class PocoLiveWallpaperService : WallpaperService() {
     const ctx = canvas.getContext('2d');
     const video = document.getElementById('wallpaperVideo');
     const phoneScreen = document.getElementById('phoneScreen');
-    const viewLock = document.getElementById('viewLockScreen');
-    const viewHome = document.getElementById('viewHomeScreen');
-    const btnLock = document.getElementById('btnLockMode');
-    const btnHome = document.getElementById('btnHomeMode');
-    const lockClock = document.getElementById('lockClock');
-    const lockDate = document.getElementById('lockDate');
     const statusTime = document.getElementById('statusBarTime');
-    const edgeHud = document.getElementById('edgeHudBar');
     const hudFps = document.getElementById('hudFps');
-    const hudDir = document.getElementById('hudDirection');
     const hudLoops = document.getElementById('hudLoops');
     const hudKill = document.getElementById('hudKillBtn');
 
-    // Telemetry
-    const telFps = document.getElementById('telemetryFps');
-    const telTime = document.getElementById('telemetryFrameTime');
-    const telLoops = document.getElementById('telemetryLoops');
+    // Movable Edge Dock References
+    const wallpaperDock = document.getElementById('wallpaperDock');
+    const dockHandle = document.getElementById('dockHandle');
+    const dockPanel = document.getElementById('dockPanel');
+    const dockGripHeader = document.getElementById('dockGripHeader');
+    const dockCloseBtn = document.getElementById('dockCloseBtn');
+    const btnKillAllDock = document.getElementById('btnKillAllDock');
+    const killBtnLabel = document.getElementById('killBtnLabel');
+    const killBtnSub = document.getElementById('killBtnSub');
+    const dockSpeedBtn = document.getElementById('dockSpeedBtn');
+    const dockFlipBtn = document.getElementById('dockFlipBtn');
+    const dockMinimizeBtn = document.getElementById('dockMinimizeBtn');
+    const dockLed = document.getElementById('dockLed');
+    const dockFpsText = document.getElementById('dockFpsText');
+    const dockStatusText = document.getElementById('dockStatusText');
+    const dockChevron = document.getElementById('dockChevron');
+    const dockHudFps = document.getElementById('dockHudFps');
+    const dockHudDrain = document.getElementById('dockHudDrain');
+
+    let dockXPercent = 100;
+    let dockYPercent = 42;
+    let dockSide = 'right';
+    let isDockMerged = true;
+
+    function updateDockStyles() {
+      if (!wallpaperDock) return;
+      wallpaperDock.style.top = dockYPercent + '%';
+      const isExpanded = dockPanel && !dockPanel.classList.contains('hidden');
+      if (isDockMerged) {
+        wallpaperDock.style.transition = 'all 0.3s ease-out';
+        const edgeInset = isExpanded ? '12px' : '0px';
+        if (dockSide === 'left') {
+          wallpaperDock.style.left = edgeInset;
+          wallpaperDock.style.right = 'auto';
+          wallpaperDock.style.transform = 'translateY(-50%)';
+          if (dockHandle) {
+            dockHandle.className = 'flex flex-col items-center justify-center py-2.5 px-1 rounded-r-2xl border border-l-0 border-white/20 bg-neutral-950/85 hover:bg-black/95 backdrop-blur-2xl shadow-2xl cursor-grab active:cursor-grabbing transition-transform duration-200';
+            if (dockChevron) dockChevron.textContent = '▶';
+          }
+        } else {
+          wallpaperDock.style.right = edgeInset;
+          wallpaperDock.style.left = 'auto';
+          wallpaperDock.style.transform = 'translateY(-50%)';
+          if (dockHandle) {
+            dockHandle.className = 'flex flex-col items-center justify-center py-2.5 px-1 rounded-l-2xl border border-r-0 border-white/20 bg-neutral-950/85 hover:bg-black/95 backdrop-blur-2xl shadow-2xl cursor-grab active:cursor-grabbing transition-transform duration-200';
+            if (dockChevron) dockChevron.textContent = '◀';
+          }
+        }
+      } else {
+        wallpaperDock.style.transition = 'none';
+        wallpaperDock.style.left = 'clamp(100px, ' + dockXPercent + '%, calc(100% - 100px))';
+        wallpaperDock.style.right = 'auto';
+        wallpaperDock.style.transform = 'translate(-50%, -50%)';
+        if (dockHandle) {
+          dockHandle.className = 'flex flex-col items-center justify-center py-2.5 px-1.5 rounded-2xl border border-white/20 bg-neutral-950/85 hover:bg-black/95 backdrop-blur-2xl shadow-2xl cursor-grab active:cursor-grabbing';
+        }
+      }
+    }
+
+    function setupMovableDockPointer(triggerElem, isTapToggle) {
+      if (!triggerElem) return;
+      triggerElem.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startClientX = e.clientX;
+        const startClientY = e.clientY;
+        const startX = dockXPercent;
+        const startY = dockYPercent;
+        let hasMoved = false;
+
+        function onPointerMove(me) {
+          me.preventDefault();
+          const deltaX = me.clientX - startClientX;
+          const deltaY = me.clientY - startClientY;
+          if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+            hasMoved = true;
+          }
+          const rect = phoneScreen.getBoundingClientRect();
+          const deltaPercentX = (deltaX / rect.width) * 100;
+          const deltaPercentY = (deltaY / rect.height) * 100;
+
+          dockXPercent = Math.max(0, Math.min(100, startX + deltaPercentX));
+          dockYPercent = Math.max(12, Math.min(86, startY + deltaPercentY));
+          dockSide = dockXPercent < 50 ? 'left' : 'right';
+          isDockMerged = false;
+          updateDockStyles();
+        }
+
+        function onPointerUp(ue) {
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+          window.removeEventListener('pointercancel', onPointerUp);
+
+          // Automatically snap to the nearest edge (left or right)
+          dockSide = dockXPercent <= 50 ? 'left' : 'right';
+          dockXPercent = dockSide === 'left' ? 0 : 100;
+          isDockMerged = true;
+          updateDockStyles();
+
+          if (!hasMoved && isTapToggle) {
+            // Simple tap opens/closes panel
+            if (dockPanel) {
+              const isHidden = dockPanel.classList.contains('hidden');
+              if (isHidden) {
+                dockPanel.classList.remove('hidden');
+                dockPanel.classList.add('flex');
+                if (dockHandle) dockHandle.classList.add('hidden');
+              } else {
+                dockPanel.classList.add('hidden');
+                dockPanel.classList.remove('flex');
+                if (dockHandle) dockHandle.classList.remove('hidden');
+              }
+              updateDockStyles();
+            }
+          }
+        }
+
+        window.addEventListener('pointermove', onPointerMove, { passive: false });
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+      });
+    }
+
+    setupMovableDockPointer(dockHandle, true);
+    setupMovableDockPointer(dockGripHeader, false);
+
+    if (dockCloseBtn) {
+      dockCloseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dockPanel) {
+          dockPanel.classList.add('hidden');
+          dockPanel.classList.remove('flex');
+        }
+        if (dockHandle) dockHandle.classList.remove('hidden');
+        updateDockStyles();
+      });
+    }
+
+    if (dockMinimizeBtn) {
+      dockMinimizeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dockPanel) {
+          dockPanel.classList.add('hidden');
+          dockPanel.classList.remove('flex');
+        }
+        if (dockHandle) dockHandle.classList.remove('hidden');
+        updateDockStyles();
+      });
+    }
+
+    if (dockFlipBtn) {
+      dockFlipBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dockSide = dockSide === 'left' ? 'right' : 'left';
+        dockXPercent = dockSide === 'left' ? 0 : 100;
+        isDockMerged = true;
+        updateDockStyles();
+      });
+    }
+
+    function toggleKillEngine() {
+      isKilled = !isKilled;
+      if (isKilled) {
+        if (video) video.pause();
+        if (btnKillAllDock) {
+          btnKillAllDock.className = 'w-full py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white border border-emerald-400/40 cursor-pointer active:scale-95 transition-all';
+        }
+        if (killBtnLabel) killBtnLabel.textContent = 'RESUME PROCESSES';
+        if (killBtnSub) killBtnSub.textContent = 'Engine is frozen';
+        if (dockLed) dockLed.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping shadow-[0_0_8px_#ef4444]';
+        if (dockFpsText) {
+          dockFpsText.textContent = 'KILLED';
+          dockFpsText.className = 'text-[9px] font-mono font-black text-rose-400';
+        }
+        if (dockStatusText) dockStatusText.textContent = '0% CPU';
+        if (dockHudFps) {
+          dockHudFps.textContent = '0';
+          dockHudFps.className = 'text-[11px] font-mono font-black text-rose-400';
+        }
+        if (dockHudDrain) dockHudDrain.textContent = '0.1%';
+      } else {
+        if (video && currentWallpaperId === 'custom_uploaded') video.play();
+        if (btnKillAllDock) {
+          btnKillAllDock.className = 'w-full py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 hover:to-red-700 text-white border border-rose-400/50 cursor-pointer active:scale-95 transition-all';
+        }
+        if (killBtnLabel) killBtnLabel.textContent = 'KILL ALL PROCESSES';
+        if (killBtnSub) killBtnSub.textContent = '0% CPU • Freeze All';
+        if (dockLed) dockLed.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]';
+        if (dockFpsText) {
+          dockFpsText.textContent = '60 FPS';
+          dockFpsText.className = 'text-[9px] font-mono font-black text-cyan-300';
+        }
+        if (dockStatusText) dockStatusText.textContent = 'ACTIVE';
+        if (dockHudFps) {
+          dockHudFps.textContent = '60';
+          dockHudFps.className = 'text-[11px] font-mono font-black text-emerald-400';
+        }
+        if (dockHudDrain) dockHudDrain.textContent = '3.6%';
+      }
+    }
+
+    if (btnKillAllDock) {
+      btnKillAllDock.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleKillEngine();
+      });
+    }
+
+    if (dockSpeedBtn) {
+      dockSpeedBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const speeds = [0.5, 1.0, 1.5, 2.0];
+        let idx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
+        playbackSpeed = speeds[idx];
+        if (video) video.playbackRate = playbackSpeed;
+        dockSpeedBtn.textContent = playbackSpeed + 'x';
+        if (inputSpeed) inputSpeed.value = playbackSpeed;
+        if (labelSpeed) labelSpeed.textContent = playbackSpeed + 'x';
+      });
+    }
 
     // Controls
     const wallpapersGrid = document.getElementById('wallpapersGrid');
@@ -402,14 +615,8 @@ class PocoLiveWallpaperService : WallpaperService() {
     const checkAmoled = document.getElementById('checkAmoled');
     const checkGyro = document.getElementById('checkGyro');
     const checkParticles = document.getElementById('checkParticles');
-    const checkGlitch = document.getElementById('checkGlitch');
-    const cardHeadline = document.getElementById('cardHeadline');
-    const cardSubtext = document.getElementById('cardSubtext');
-    const cardBadge = document.getElementById('cardBadge');
-    const inputHeadline = document.getElementById('inputLockHeadline');
-    const inputSubtext = document.getElementById('inputLockSubtext');
-    const inputBadge = document.getElementById('inputLockBadge');
     const videoInput = document.getElementById('videoFileInput');
+    const btnCopyKotlin = document.getElementById('btnCopyKotlin');
 
     // --- PRE-SEEDED SHADER DATA ---
     const RAIN_DROPS = Array.from({ length: 90 }, (_, i) => ({
@@ -432,12 +639,12 @@ class PocoLiveWallpaperService : WallpaperService() {
         const btn = document.createElement('button');
         const isActive = (currentWallpaperId === wp.id);
         btn.className = \`p-3 rounded-2xl border text-left flex flex-col gap-1 transition-all \${
-          isActive ? 'bg-amber-500/10 border-amber-500 text-white shadow-md' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+          isActive ? 'bg-cyan-500/10 border-cyan-500 text-white shadow-md' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
         }\`;
         btn.innerHTML = \`
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold font-mono \${isActive ? 'text-amber-400' : 'text-neutral-200'}">\${wp.name}</span>
-            \${isActive ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500 text-black font-bold">ACTIVE</span>' : ''}
+            <span class="text-xs font-bold font-mono \${isActive ? 'text-cyan-400' : 'text-neutral-200'}">\${wp.name}</span>
+            \${isActive ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500 text-black font-bold">ACTIVE</span>' : ''}
           </div>
           <p class="text-[10px] text-neutral-400 line-clamp-2 mt-0.5">\${wp.desc}</p>
         \`;
@@ -459,27 +666,10 @@ class PocoLiveWallpaperService : WallpaperService() {
         document.querySelectorAll('.tab-btn').forEach(b => {
           b.className = 'tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-neutral-400 hover:text-white';
         });
-        btn.className = 'tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-amber-500 text-black shadow-sm';
+        btn.className = 'tab-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500 text-black shadow-sm';
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
         document.getElementById('tabContent_' + tab)?.classList.remove('hidden');
       });
-    });
-
-    // --- LOCK / HOME MODE ---
-    btnLock.addEventListener('click', () => {
-      isHomeMode = false;
-      btnLock.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-black shadow-sm transition-all';
-      btnHome.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-neutral-400 hover:text-white transition-all';
-      viewLock.classList.remove('hidden');
-      viewHome.classList.add('hidden');
-    });
-
-    btnHome.addEventListener('click', () => {
-      isHomeMode = true;
-      btnHome.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-black shadow-sm transition-all';
-      btnLock.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-neutral-400 hover:text-white transition-all';
-      viewHome.classList.remove('hidden');
-      viewLock.classList.add('hidden');
     });
 
     // --- CONTROLS LISTENERS ---
@@ -518,26 +708,28 @@ class PocoLiveWallpaperService : WallpaperService() {
     checkGyro.addEventListener('change', (e) => { gyroEnabled = e.target.checked; });
     checkParticles.addEventListener('change', (e) => { particlesEnabled = e.target.checked; });
 
-    inputHeadline.addEventListener('input', (e) => { cardHeadline.innerText = e.target.value.toUpperCase(); });
-    inputSubtext.addEventListener('input', (e) => { cardSubtext.innerText = e.target.value.toUpperCase(); });
-    inputBadge.addEventListener('input', (e) => { cardBadge.innerText = e.target.value.toUpperCase(); });
-    checkGlitch.addEventListener('change', (e) => {
-      if (e.target.checked) cardHeadline.classList.add('glitch-text');
-      else cardHeadline.classList.remove('glitch-text');
-    });
-
-    hudKill.addEventListener('click', () => {
+    hudKill.addEventListener('click', (e) => {
+      e.stopPropagation();
       isKilled = !isKilled;
       if (isKilled) {
-        hudKill.innerText = 'RESUME';
-        hudKill.className = 'mt-1 px-1.5 py-0.5 bg-rose-600 text-white text-[8px] font-mono font-bold rounded';
+        hudKill.innerText = '⏻';
+        hudKill.className = 'w-5 h-5 rounded-full bg-rose-600 text-white text-[9px] font-mono font-bold flex items-center justify-center animate-pulse ring-1 ring-rose-400 flex-shrink-0';
         if (video) video.pause();
       } else {
-        hudKill.innerText = 'KILL';
-        hudKill.className = 'mt-1 px-1.5 py-0.5 bg-rose-950 border border-rose-500/40 text-rose-300 text-[8px] font-mono font-bold rounded';
+        hudKill.innerText = '⏻';
+        hudKill.className = 'w-5 h-5 rounded-full bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-[9px] font-mono font-bold flex items-center justify-center transition-transform hover:scale-110 active:scale-95 flex-shrink-0';
         if (video && currentWallpaperId === 'custom_uploaded') video.play();
       }
     });
+
+    if (btnCopyKotlin) {
+      btnCopyKotlin.addEventListener('click', () => {
+        navigator.clipboard.writeText(\`package com.poco.livewallpaper
+import android.service.wallpaper.WallpaperService\`);
+        btnCopyKotlin.innerText = 'Copied!';
+        setTimeout(() => { btnCopyKotlin.innerText = 'Copy Kotlin'; }, 2000);
+      });
+    }
 
     // --- HARDWARE SENSORS & TOUCH TRACKING ---
     window.addEventListener('deviceorientation', (e) => {
@@ -646,207 +838,139 @@ class PocoLiveWallpaperService : WallpaperService() {
       // Telemetry
       frameCounter++;
       if (frameCounter % 15 === 0) {
-        const currentFps = Math.min(60, Math.round(1000 / Math.max(deltaMs, 1)));
+        const currentFps = Math.min(90, Math.round(1000 / Math.max(deltaMs, 1)));
         hudFps.innerText = currentFps + ' FPS';
-        telFps.innerText = currentFps.toFixed(1) + ' FPS';
-        telTime.innerText = deltaMs.toFixed(1) + ' ms';
         hudDir.innerText = direction === 'forward' ? 'FWD ▶' : 'REV ◀';
         hudLoops.innerText = 'Loops: ' + loopCount;
-        telLoops.innerText = loopCount;
       }
 
-      // Smooth Gyro Lerp
-      gyroX += (targetGyroX - gyroX) * 0.14;
-      gyroY += (targetGyroY - gyroY) * 0.14;
+      // Gyro damping
+      gyroX += (targetGyroX - gyroX) * 0.08;
+      gyroY += (targetGyroY - gyroY) * 0.08;
 
-      // Advance Time
-      time += deltaSec * playbackSpeed * (direction === 'forward' ? 1 : -1);
+      const w = canvas.width;
+      const h = canvas.height;
 
-      // Procedural Ping-Pong Loop
-      if (currentWallpaperId !== 'custom_uploaded') {
-        const loopDuration = 6.0;
-        if (pingPong) {
-          if (direction === 'forward') {
-            progress += (deltaSec * playbackSpeed) / loopDuration;
-            if (progress >= 1.0) {
-              progress = 1.0;
-              direction = 'reverse';
-              loopCount++;
-            }
-          } else {
-            progress -= (deltaSec * playbackSpeed) / loopDuration;
-            if (progress <= 0.0) {
-              progress = 0.0;
-              direction = 'forward';
-              loopCount++;
-            }
-          }
-        } else {
-          progress = (progress + (deltaSec * playbackSpeed) / loopDuration) % 1.0;
-          direction = 'forward';
-        }
-
-        // Render Active Procedural Shader
-        renderShader(currentWallpaperId, ctx, canvas.width, canvas.height, progress, time);
-      } else {
-        // Video Playback Mode (Forward native + Reverse 60 FPS Frame Buffer)
+      if (currentWallpaperId === 'custom_uploaded') {
         if (pingPong) {
           if (direction === 'forward') {
             canvas.classList.add('hidden');
             video.classList.remove('hidden');
-            if (video.paused) video.play().catch(() => {});
-            if (video.currentTime >= (video.duration || 5) - 0.08 || video.ended) {
-              direction = 'reverse';
-              reverseFrameIdx = 0;
-              video.pause();
-              loopCount++;
-            }
-          } else {
-            video.classList.add('hidden');
-            canvas.classList.remove('hidden');
-            if (reverseFrames.length > 0) {
-              const fIdx = Math.min(reverseFrames.length - 1, Math.floor(reverseFrameIdx));
-              const frame = reverseFrames[fIdx];
-              if (frame) {
-                // Exact Object-Cover Source Cropping
-                const cW = canvas.width, cH = canvas.height;
-                const fW = frame.width, fH = frame.height;
-                const cAspect = cW / cH, fAspect = fW / fH;
-                let sX = 0, sY = 0, sW = fW, sH = fH;
-                if (fAspect > cAspect) {
-                  sW = fH * cAspect;
-                  sX = (fW - sW) / 2;
-                } else {
-                  sH = fW / cAspect;
-                  sY = (fH - sH) / 2;
-                }
-                ctx.drawImage(frame, sX, sY, sW, sH, 0, 0, cW, cH);
-              }
-
-              reverseFrameIdx += deltaSec * 30 * playbackSpeed;
-              if (reverseFrameIdx >= reverseFrames.length - 1) {
-                direction = 'forward';
+            if (video.duration && video.currentTime >= video.duration - 0.1) {
+              if (reverseFrames.length > 0) {
+                direction = 'reverse';
                 reverseFrameIdx = 0;
+                video.pause();
+                video.classList.add('hidden');
+                canvas.classList.remove('hidden');
+              } else {
                 video.currentTime = 0;
-                video.play().catch(() => {});
                 loopCount++;
               }
-            } else {
-              direction = 'forward';
-              video.currentTime = 0;
+            }
+          } else {
+            // Reverse loop
+            if (reverseFrames.length > 0) {
+              ctx.clearRect(0, 0, w, h);
+              const frame = reverseFrames[reverseFrameIdx];
+              if (frame) {
+                const imgW = frame.width;
+                const imgH = frame.height;
+                const scale = Math.max(w / imgW, h / imgH);
+                const drawW = imgW * scale;
+                const drawH = imgH * scale;
+                const offsetX = (w - drawW) / 2;
+                const offsetY = (h - drawH) / 2;
+                ctx.drawImage(frame, offsetX, offsetY, drawW, drawH);
+              }
+              reverseFrameIdx++;
+              if (reverseFrameIdx >= reverseFrames.length) {
+                direction = 'forward';
+                loopCount++;
+                video.currentTime = 0;
+                video.play().catch(() => {});
+              }
             }
           }
+        }
+      } else {
+        // Procedural Hardware Shaders
+        ctx.clearRect(0, 0, w, h);
+        const cycleSpeed = (0.2 * playbackSpeed);
+        const t = (now * 0.001) * playbackSpeed;
+
+        if (pingPong) {
+          const rawCycle = (t * cycleSpeed) % 2.0;
+          if (rawCycle < 1.0) {
+            progress = rawCycle;
+            direction = 'forward';
+          } else {
+            progress = 2.0 - rawCycle;
+            direction = 'reverse';
+          }
         } else {
-          canvas.classList.add('hidden');
-          video.classList.remove('hidden');
-          if (video.paused) video.play().catch(() => {});
+          progress = (t * cycleSpeed) % 1.0;
+          direction = 'forward';
+        }
+
+        switch (currentWallpaperId) {
+          case 'cyber_megacity_2099': drawCyberMegacity(ctx, w, h, progress, t); break;
+          case 'tokyo_rain_street': drawTokyoRainStreet(ctx, w, h, progress, t); break;
+          case 'anime_twilight_shinkai': drawAnimeTwilight(ctx, w, h, progress, t); break;
+          case 'cyber_grid_matrix': default: drawAmoledMatrixGrid(ctx, w, h, progress, t); break;
         }
       }
 
-      // Render Touch Particles
+      // Draw touch particles
       if (particlesEnabled && particles.length > 0) {
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i];
           p.x += p.vx;
           p.y += p.vy;
-          p.alpha -= deltaSec * 1.6;
-          if (p.alpha <= 0) { particles.splice(i, 1); continue; }
-          ctx.fillStyle = '#38bdf8';
-          ctx.globalAlpha = p.alpha;
+          p.alpha -= 0.03;
+          if (p.alpha <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+          ctx.fillStyle = \`rgba(6, 182, 212, \${p.alpha})\`;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fill();
-          ctx.globalAlpha = 1;
         }
       }
     }
 
-    // --- PROCEDURAL SHADER IMPLEMENTATIONS ---
-    function renderShader(id, ctx, w, h, p, t) {
-      ctx.save();
-      if (id === 'cyber_megacity_2099') drawCyberMegacity(ctx, w, h, p, t);
-      else if (id === 'tokyo_rain_street') drawTokyoRainStreet(ctx, w, h, p, t);
-      else if (id === 'anime_twilight_shinkai') drawAnimeTwilight(ctx, w, h, p, t);
-      else if (id === 'locked_reason_cyber') drawLockedReasonCyber(ctx, w, h, p, t);
-      else drawAmoledMatrixGrid(ctx, w, h, p, t);
-      ctx.restore();
-    }
-
-    // 1. Megacity 2099
+    // --- SHADER 1: Neo-Kowloon Megacity ---
     function drawCyberMegacity(ctx, w, h, p, t) {
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, amoledCrush ? '#000000' : '#030712');
-      sky.addColorStop(0.5, '#0b132b');
-      sky.addColorStop(1, '#1e1b4b');
-      ctx.fillStyle = sky;
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, amoledCrush ? '#000000' : '#030712');
+      grad.addColorStop(0.6, '#0f172a');
+      grad.addColorStop(1, '#020617');
+      ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      // Searchlight
-      ctx.save();
-      ctx.translate(w * 0.5 + gyroX, h * 0.9 + gyroY);
-      ctx.rotate(Math.sin(t * 0.4 + p * Math.PI) * 0.35);
-      const bGrad = ctx.createLinearGradient(0, 0, 0, -h * 0.9);
-      bGrad.addColorStop(0, 'rgba(6, 182, 212, 0.25)');
-      bGrad.addColorStop(1, 'rgba(6, 182, 212, 0)');
-      ctx.fillStyle = bGrad;
-      ctx.beginPath();
-      ctx.moveTo(-15, 0); ctx.lineTo(-80, -h * 0.85); ctx.lineTo(80, -h * 0.85); ctx.lineTo(15, 0);
-      ctx.fill();
-      ctx.restore();
-
-      // Back Skyscrapers
-      ctx.fillStyle = '#060a17';
-      for (let i = 0; i < 8; i++) {
-        const bx = (i / 8) * w + gyroX * 0.3;
-        const bw = w / 8 + 8;
-        const bh = h * (0.45 + ((i * 7) % 5) * 0.08);
-        ctx.fillRect(bx, h - bh, bw, bh);
-      }
-
-      // Midground with window grid
-      for (let i = 0; i < 6; i++) {
-        const mx = (i / 6) * w - 10 + gyroX * 0.6;
-        const mw = w / 6 + 14;
-        const mh = h * (0.35 + ((i * 11) % 4) * 0.1);
-        ctx.fillStyle = '#0a1024';
-        ctx.fillRect(mx, h - mh, mw, mh);
-        for (let r = 0; r < 14; r++) {
-          for (let c = 0; c < 4; c++) {
-            const idx = (i * 14 + r * 4 + c) % WINDOWS_GRID.length;
-            const item = WINDOWS_GRID[idx];
-            if (item.seed > -0.2) {
-              ctx.fillStyle = item.color;
-              ctx.globalAlpha = item.flicker ? 0.3 + Math.sin(t * 5 + idx) * 0.3 : 0.65;
-              ctx.fillRect(mx + 4 + c * 7, h - mh + 12 + r * 10, 3.5, 5);
-            }
-          }
-        }
-        ctx.globalAlpha = 1;
-      }
-
-      // Sky-Train
-      const skywayY = h * 0.58 + gyroY;
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(0, skywayY); ctx.lineTo(w, skywayY + 8); ctx.stroke();
-
-      const trainX = ((p * 1.6 - 0.3) * w) % (w + 140) - 70;
-      ctx.fillStyle = '#ec4899';
-      ctx.fillRect(trainX, skywayY - 4, 75, 5);
+      // Sky-train
+      const trainX = ((p * 2.2 * w) % (w * 1.6)) - w * 0.3 + gyroX * 0.5;
+      const trainY = h * 0.28 + Math.sin(p * Math.PI * 4) * 2 + gyroY * 0.3;
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.9)';
+      ctx.fillRect(trainX, trainY, 80, 5);
 
       // Rain
-      ctx.strokeStyle = 'rgba(186, 230, 253, 0.25)';
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
       ctx.lineWidth = 1;
-      RAIN_DROPS.forEach(rd => {
-        const rx = ((rd.x + p * 40 * rd.speed) % 100) * 0.01 * w;
-        const ry = ((rd.y + p * 120 * rd.speed) % 100) * 0.01 * h;
-        ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 5, ry + rd.length); ctx.stroke();
+      RAIN_DROPS.forEach(drop => {
+        const dropY = ((drop.y + p * drop.speed * 100) % 100) * 0.01 * h;
+        const dropX = drop.x * 0.01 * w + (gyroX * 0.2);
+        ctx.beginPath();
+        ctx.moveTo(dropX, dropY);
+        ctx.lineTo(dropX - 1.5, dropY + drop.length);
+        ctx.stroke();
       });
     }
 
-    // 2. Tokyo Rain Street
+    // --- SHADER 2: Shinjuku Rain Street ---
     function drawTokyoRainStreet(ctx, w, h, p, t) {
-      const horizonY = h * 0.52 + gyroY;
+      const horizonY = h * 0.52;
       ctx.fillStyle = amoledCrush ? '#000000' : '#0a0914';
       ctx.fillRect(0, 0, w, horizonY);
 
@@ -878,7 +1002,7 @@ class PocoLiveWallpaperService : WallpaperService() {
       ctx.beginPath(); ctx.moveTo(w * 0.46, horizonY); ctx.lineTo(w * 0.54, horizonY); ctx.lineTo(w * 0.72, h); ctx.lineTo(w * 0.28, h); ctx.fill();
     }
 
-    // 3. Anime Twilight
+    // --- SHADER 3: Anime Twilight ---
     function drawAnimeTwilight(ctx, w, h, p, t) {
       const sky = ctx.createLinearGradient(0, 0, 0, h * 0.75);
       sky.addColorStop(0, '#13092e');
@@ -902,26 +1026,7 @@ class PocoLiveWallpaperService : WallpaperService() {
       ctx.fillRect(0, h * 0.74 + gyroY, w, h * 0.26);
     }
 
-    // 4. Lock Vault
-    function drawLockedReasonCyber(ctx, w, h, p, t) {
-      const bg = ctx.createRadialGradient(w * 0.5, h * 0.45, 10, w * 0.5, h * 0.45, w * 0.85);
-      bg.addColorStop(0, '#0f172a');
-      bg.addColorStop(1, '#020408');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, h);
-
-      const cX = w * 0.5 + gyroX;
-      const cY = h * 0.42 + gyroY;
-      const pulse = Math.sin(t * 1.8) * 6;
-
-      ctx.strokeStyle = 'rgba(244, 63, 94, 0.3)';
-      ctx.beginPath(); ctx.arc(cX, cY, 55 + pulse, 0, Math.PI * 2); ctx.stroke();
-
-      ctx.fillStyle = 'rgba(244, 63, 94, 0.9)';
-      ctx.beginPath(); ctx.roundRect(cX - 13, cY - 8, 26, 20, 5); ctx.fill();
-    }
-
-    // 5. AMOLED Grid
+    // --- SHADER 4: AMOLED Grid ---
     function drawAmoledMatrixGrid(ctx, w, h, p, t) {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, w, h);
@@ -946,7 +1051,6 @@ class PocoLiveWallpaperService : WallpaperService() {
     function updateClock() {
       const d = new Date();
       const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      lockClock.innerText = timeStr;
       statusTime.innerText = timeStr;
     }
     setInterval(updateClock, 1000);

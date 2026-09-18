@@ -30,8 +30,8 @@ interface ControlPanelProps {
   onUpdateSettings: (updater: (prev: EngineSettings) => EngineSettings) => void;
   telemetry: EngineTelemetry;
   onToggleKillSwitch: () => void;
-  screenView: 'home' | 'lock';
-  onSetScreenView: (view: 'home' | 'lock') => void;
+  screenView?: 'home';
+  onSetScreenView?: (view: 'home') => void;
   onCustomVideoUploaded: (url: string, name: string) => void;
   uploadedVideoName?: string | null;
 }
@@ -46,21 +46,48 @@ export default function ControlPanel({
   onCustomVideoUploaded,
   uploadedVideoName,
 }: ControlPanelProps) {
-  const [activeTab, setActiveTab] = useState<'wallpapers' | 'pingpong' | 'dual_screen' | 'poco_guide' | 'native_code'>('wallpapers');
+  const [activeTab, setActiveTab] = useState<'wallpapers' | 'engine' | 'poco_guide' | 'native_code'>('wallpapers');
   const [copiedCode, setCopiedCode] = useState(false);
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
+  const [durationNotice, setDurationNotice] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
+      
+      // Load video metadata to measure duration and enforce 30s maximum limit
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      tempVideo.src = url;
+      tempVideo.onloadedmetadata = () => {
+        const rawDuration = tempVideo.duration || 0;
+        setVideoDuration(rawDuration);
+        
+        if (rawDuration > 30.0) {
+          setDurationNotice(`Video is ${rawDuration.toFixed(1)}s long. Length limit is 30s — automatically capped to the first 30 seconds.`);
+          onUpdateSettings(prev => ({
+            ...prev,
+            trimStartSec: 0,
+            trimEndSec: 30,
+            homeScreenWallpaperId: 'custom_uploaded',
+          }));
+        } else {
+          setDurationNotice(null);
+          onUpdateSettings(prev => ({
+            ...prev,
+            trimStartSec: 0,
+            trimEndSec: Math.min(rawDuration, 30),
+            homeScreenWallpaperId: 'custom_uploaded',
+          }));
+        }
+      };
+
       onCustomVideoUploaded(url, file.name);
     }
   };
 
-  const currentWallpaperId =
-    screenView === 'lock'
-      ? settings.lockScreenWallpaperId
-      : settings.homeScreenWallpaperId;
+  const currentWallpaperId = settings.homeScreenWallpaperId;
 
   return (
     <div className="w-full max-w-xl bg-neutral-900/90 border border-neutral-800 rounded-3xl p-6 shadow-2xl backdrop-blur-md flex flex-col gap-6">
@@ -70,14 +97,14 @@ export default function ControlPanel({
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
             <h2 className="text-lg font-bold text-white tracking-tight">
-              POCO Live Wallpaper Engine
+              POCO Home Live Wallpaper Engine
             </h2>
             <span className="px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-500/30 text-[10px] font-bold">
-              60 FPS
+              {settings.fpsTarget} FPS
             </span>
           </div>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Zero-audio • Ping-pong reverse loops • POCO Pro 5G optimized
+            Dedicated Home Screen • Zero-audio • Hardware decoded • Continuous 90Hz loop
           </p>
         </div>
 
@@ -98,7 +125,7 @@ export default function ControlPanel({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="grid grid-cols-5 gap-1.5 bg-neutral-950/80 p-1.5 rounded-2xl border border-neutral-800 text-xs font-semibold">
+      <div className="grid grid-cols-4 gap-1.5 bg-neutral-950/80 p-1.5 rounded-2xl border border-neutral-800 text-xs font-semibold">
         <button
           id="tab-btn-wallpapers"
           onClick={() => setActiveTab('wallpapers')}
@@ -112,27 +139,15 @@ export default function ControlPanel({
         </button>
 
         <button
-          id="tab-btn-pingpong"
-          onClick={() => setActiveTab('pingpong')}
+          id="tab-btn-engine"
+          onClick={() => setActiveTab('engine')}
           className={`py-2 px-1 rounded-xl text-center transition-all ${
-            activeTab === 'pingpong'
+            activeTab === 'engine'
               ? 'bg-neutral-800 text-cyan-300 shadow-sm'
               : 'text-neutral-400 hover:text-white'
           }`}
         >
-          60 FPS Loop
-        </button>
-
-        <button
-          id="tab-btn-dualscreen"
-          onClick={() => setActiveTab('dual_screen')}
-          className={`py-2 px-1 rounded-xl text-center transition-all ${
-            activeTab === 'dual_screen'
-              ? 'bg-neutral-800 text-rose-300 shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          Dual Lock
+          {settings.fpsTarget} FPS Engine
         </button>
 
         <button
@@ -144,7 +159,7 @@ export default function ControlPanel({
               : 'text-neutral-400 hover:text-white'
           }`}
         >
-          POCO 5G
+          POCO Guide
         </button>
 
         <button
@@ -163,20 +178,13 @@ export default function ControlPanel({
       {/* ================= TAB 1: WALLPAPER PRESETS & VIDEO UPLOAD ================= */}
       {activeTab === 'wallpapers' && (
         <div className="flex flex-col gap-5 animate-fade-in">
-          {/* Target Screen Banner */}
+          {/* Active Home Screen Info Banner */}
           <div className="flex items-center justify-between p-3 rounded-2xl bg-neutral-950 border border-neutral-800">
-            <span className="text-xs text-neutral-300">
-              Active Screen Preview:{' '}
-              <strong className={screenView === 'lock' ? 'text-rose-400' : 'text-cyan-400'}>
-                {screenView === 'lock' ? 'Lock Screen' : 'Home Screen'}
-              </strong>
+            <span className="text-xs text-neutral-300 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span>Target: <strong className="text-cyan-400">POCO Home Screen Live Wallpaper</strong></span>
             </span>
-            <button
-              onClick={() => onSetScreenView(screenView === 'lock' ? 'home' : 'lock')}
-              className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-[11px] text-white font-medium transition-colors"
-            >
-              Switch to {screenView === 'lock' ? 'Home' : 'Lock'}
-            </button>
+            <span className="text-[10px] font-mono text-neutral-500">Lock screen removed</span>
           </div>
 
           {/* ================= PROMINENT VIDEO UPLOADER SECTION ================= */}
@@ -188,13 +196,13 @@ export default function ControlPanel({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    Upload Your Video as Live Wallpaper
+                    Upload Your Video as Home Live Wallpaper
                     <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[9px] font-mono font-bold">
-                      POCO 60 FPS
+                      MAX 30s LIMIT
                     </span>
                   </h3>
                   <p className="text-[11px] text-neutral-400 mt-0.5">
-                    Auto ping-pong forward/reverse loops • Zero audio • Hardware decoded
+                    Continuous hardware loop • Max length: <strong className="text-cyan-300">30 seconds</strong> • Zero audio • Hardware decoded
                   </p>
                 </div>
               </div>
@@ -208,62 +216,77 @@ export default function ControlPanel({
                     <Check className="w-4 h-4" />
                     <span className="truncate max-w-[200px]">{uploadedVideoName}</span>
                   </div>
-                  <span className="text-[10px] font-mono text-neutral-400">
-                    Active Video
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {videoDuration && (
+                      <span className="text-[9px] font-mono text-neutral-300 bg-neutral-800 px-2 py-0.5 rounded-full border border-neutral-700">
+                        {Math.min(videoDuration, 30).toFixed(1)}s / 30s
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded-full border border-cyan-500/30">
+                      Active Home Wallpaper
+                    </span>
+                  </div>
                 </div>
 
-                {/* Where to apply the uploaded video */}
-                <div className="flex items-center gap-2 pt-1 border-t border-neutral-800">
-                  <span className="text-[11px] text-neutral-400">Apply to:</span>
-                  <button
-                    onClick={() =>
-                      onUpdateSettings(prev => ({ ...prev, homeScreenWallpaperId: 'custom_uploaded' }))
-                    }
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all ${
-                      settings.homeScreenWallpaperId === 'custom_uploaded'
-                        ? 'bg-cyan-500 text-black shadow-sm font-bold'
-                        : 'bg-neutral-800 text-neutral-300 hover:text-white'
-                    }`}
-                  >
-                    Home Screen
-                  </button>
-                  <button
-                    onClick={() =>
-                      onUpdateSettings(prev => ({ ...prev, lockScreenWallpaperId: 'custom_uploaded' }))
-                    }
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all ${
-                      settings.lockScreenWallpaperId === 'custom_uploaded'
-                        ? 'bg-rose-500 text-white shadow-sm font-bold'
-                        : 'bg-neutral-800 text-neutral-300 hover:text-white'
-                    }`}
-                  >
-                    Lock Screen
-                  </button>
-                  <button
-                    onClick={() =>
-                      onUpdateSettings(prev => ({
-                        ...prev,
-                        homeScreenWallpaperId: 'custom_uploaded',
-                        lockScreenWallpaperId: 'custom_uploaded',
-                      }))
-                    }
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all ${
-                      settings.homeScreenWallpaperId === 'custom_uploaded' &&
-                      settings.lockScreenWallpaperId === 'custom_uploaded'
-                        ? 'bg-emerald-500 text-black shadow-sm font-bold'
-                        : 'bg-neutral-800 text-neutral-300 hover:text-white'
-                    }`}
-                  >
-                    Both Screens
-                  </button>
+                {/* Duration Cap Notice if > 30s */}
+                {durationNotice && (
+                  <div className="p-2 rounded-xl bg-amber-950/40 border border-amber-500/40 text-[11px] text-amber-300 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <span>{durationNotice}</span>
+                  </div>
+                )}
+
+                {/* Video Trimmer Controls (0 to 30s) */}
+                <div className="p-2.5 rounded-xl bg-neutral-950/80 border border-neutral-800 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-neutral-300 font-medium">Loop Trim Range (Max 30s):</span>
+                    <span className="font-mono text-[10px] text-cyan-300 font-bold">
+                      {settings.trimStartSec.toFixed(1)}s → {Math.min(settings.trimEndSec || 30, 30).toFixed(1)}s ({((Math.min(settings.trimEndSec || 30, 30)) - settings.trimStartSec).toFixed(1)}s duration)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-[9px] text-neutral-400 mb-0.5">Start Trim: {settings.trimStartSec}s</div>
+                      <input
+                        type="range"
+                        min="0"
+                        max={Math.max(0, Math.min(settings.trimEndSec || 30, 30) - 1)}
+                        step="0.5"
+                        value={settings.trimStartSec}
+                        onChange={e =>
+                          onUpdateSettings(prev => ({
+                            ...prev,
+                            trimStartSec: parseFloat(e.target.value),
+                          }))
+                        }
+                        className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-neutral-400 mb-0.5">End Trim: {Math.min(settings.trimEndSec || 30, 30)}s</div>
+                      <input
+                        type="range"
+                        min={settings.trimStartSec + 1}
+                        max="30"
+                        step="0.5"
+                        value={Math.min(settings.trimEndSec || 30, 30)}
+                        onChange={e =>
+                          onUpdateSettings(prev => ({
+                            ...prev,
+                            trimEndSec: Math.min(parseFloat(e.target.value), 30),
+                          }))
+                        }
+                        className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Replace Video Button */}
-                <div className="flex items-center justify-between pt-1 text-[11px]">
+                <div className="flex items-center justify-between pt-1 text-[11px] border-t border-neutral-800">
                   <label className="cursor-pointer text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-semibold">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Replace with Another Video</span>
+                    <span>Replace with Another Video (Max 30s)</span>
                     <input
                       type="file"
                       accept="video/mp4,video/webm,video/quicktime,video/*"
@@ -277,7 +300,6 @@ export default function ControlPanel({
                       onUpdateSettings(prev => ({
                         ...prev,
                         homeScreenWallpaperId: 'cyber_megacity_2099',
-                        lockScreenWallpaperId: 'locked_reason_cyber',
                       }));
                     }}
                     className="text-neutral-400 hover:text-rose-400"
@@ -291,7 +313,7 @@ export default function ControlPanel({
               <div className="flex flex-col sm:flex-row items-center gap-2.5">
                 <label className="flex-1 w-full cursor-pointer py-3 px-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-neutral-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-center">
                   <Upload className="w-4 h-4" />
-                  <span>Choose Video File (MP4 / WebM / MOV)</span>
+                  <span>Choose Video File (MP4 / WebM / MOV • Max 30s)</span>
                   <input
                     type="file"
                     accept="video/mp4,video/webm,video/quicktime,video/*"
@@ -305,11 +327,14 @@ export default function ControlPanel({
                   onClick={() => {
                     // Fast reliable public domain video with universal CORS
                     const demoVideoUrl = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+                    setVideoDuration(5.0);
+                    setDurationNotice(null);
                     onCustomVideoUploaded(demoVideoUrl, 'MDN_Cinematic_Macro_60FPS.mp4');
                     onUpdateSettings(prev => ({
                       ...prev,
                       homeScreenWallpaperId: 'custom_uploaded',
-                      lockScreenWallpaperId: 'custom_uploaded',
+                      trimStartSec: 0,
+                      trimEndSec: 5,
                     }));
                   }}
                   className="py-3 px-3.5 rounded-2xl bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs flex items-center gap-1.5 transition-colors border border-neutral-700 cursor-pointer active:scale-95"
@@ -334,18 +359,14 @@ export default function ControlPanel({
 
           {/* Preset Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {BUILTIN_WALLPAPERS.map(wp => {
+            {BUILTIN_WALLPAPERS.filter(wp => wp.category !== 'lock_screen').map(wp => {
               const isSelected = currentWallpaperId === wp.id;
               return (
                 <button
                   key={wp.id}
                   id={`btn-select-wp-${wp.id}`}
                   onClick={() => {
-                    if (screenView === 'lock') {
-                      onUpdateSettings(prev => ({ ...prev, lockScreenWallpaperId: wp.id }));
-                    } else {
-                      onUpdateSettings(prev => ({ ...prev, homeScreenWallpaperId: wp.id }));
-                    }
+                    onUpdateSettings(prev => ({ ...prev, homeScreenWallpaperId: wp.id }));
                   }}
                   className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all ${
                     isSelected
@@ -382,60 +403,114 @@ export default function ControlPanel({
         </div>
       )}
 
-      {/* ================= TAB 2: 60 FPS & PING-PONG ENGINE ================= */}
-      {activeTab === 'pingpong' && (
+      {/* ================= TAB 2: 60 FPS HARDWARE ENGINE ================= */}
+      {activeTab === 'engine' && (
         <div className="flex flex-col gap-4 animate-fade-in">
-          {/* Ping-Pong Mode Explainer Card */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/50 to-pink-950/50 border border-cyan-500/30">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-cyan-400" />
-                <h4 className="text-xs font-bold text-white">Ping-Pong Boomerang Mode</h4>
-              </div>
-              <button
-                id="btn-toggle-pingpong"
-                onClick={() =>
-                  onUpdateSettings(prev => ({ ...prev, pingPongLoop: !prev.pingPongLoop }))
-                }
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                  settings.pingPongLoop
-                    ? 'bg-cyan-400 text-black shadow-md'
-                    : 'bg-neutral-800 text-neutral-400'
-                }`}
-              >
-                {settings.pingPongLoop ? 'ENABLED' : 'STANDARD REPEAT'}
-              </button>
-            </div>
-            <p className="text-[11px] text-neutral-300 leading-relaxed">
-              When the video hits the end frame, it smoothly reverses back to the start frame
-              without jump-cuts or black hiccups.
-            </p>
-          </div>
-
-          {/* 60 FPS Target Selector */}
+          {/* Refresh Rate & FPS Target Selector (30, 45, 60, 90 FPS) */}
           <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800">
             <h4 className="text-xs font-bold text-white mb-2 flex items-center justify-between">
-              <span>Refresh Rate & Frame Rate Target</span>
-              <span className="text-cyan-400 font-mono">{settings.fpsTarget} FPS</span>
+              <span>Refresh Rate & Base Target</span>
+              <span className="text-cyan-400 font-mono font-bold">{settings.fpsTarget} FPS ({settings.fpsTarget === 90 ? '90Hz High-Refresh' : settings.fpsTarget === 60 ? '60Hz Smooth' : settings.fpsTarget === 45 ? '45Hz Balanced' : '30Hz Eco'})</span>
             </h4>
-            <div className="grid grid-cols-3 gap-2">
-              {([24, 30, 60] as FpsTarget[]).map(fps => (
+            <div className="grid grid-cols-4 gap-2">
+              {([30, 45, 60, 90] as FpsTarget[]).map(fps => (
                 <button
                   key={fps}
                   id={`btn-fps-${fps}`}
                   onClick={() => onUpdateSettings(prev => ({ ...prev, fpsTarget: fps }))}
-                  className={`py-2 px-3 rounded-xl border text-center transition-all ${
+                  className={`py-2 px-2 rounded-xl border text-center transition-all ${
                     settings.fpsTarget === fps
                       ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold shadow'
                       : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
                   }`}
                 >
                   <div className="text-xs font-bold">{fps} FPS</div>
-                  <div className="text-[9px] text-neutral-500 mt-0.5">
-                    {fps === 60 ? 'Ultra Smooth' : fps === 30 ? 'Balanced' : 'Eco Saver'}
+                  <div className="text-[9px] text-neutral-500 mt-0.5 font-mono">
+                    {fps === 90
+                      ? '90Hz Ultra'
+                      : fps === 60
+                      ? '60Hz Smooth'
+                      : fps === 45
+                      ? '45Hz Mid'
+                      : '30Hz Eco'}
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* ================= AUTOMATIC ADAPTIVE FPS (SYSTEM LOAD GOVERNOR) ================= */}
+          <div className="p-4 rounded-2xl bg-neutral-950 border border-cyan-500/30 shadow-inner flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${settings.autoFpsMode ? 'bg-cyan-500/20 text-cyan-400' : 'bg-neutral-800 text-neutral-500'}`}>
+                  <Zap className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>Dynamic Adaptive Refresh (Auto FPS)</span>
+                    <span className="px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-[9px] font-mono">
+                      {settings.autoFpsMode ? 'ACTIVE' : 'OFF'}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                    Automatically reduces wallpaper frame rate when the phone is under heavy CPU/GPU load, gaming, or thermal throttling.
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                id="checkbox-auto-fps"
+                checked={settings.autoFpsMode}
+                onChange={e =>
+                  onUpdateSettings(prev => ({ ...prev, autoFpsMode: e.target.checked }))
+                }
+                className="w-5 h-5 accent-cyan-400 cursor-pointer rounded ml-2 flex-shrink-0"
+              />
+            </div>
+
+            {/* Simulated Load Tester */}
+            <div className="p-2.5 rounded-xl bg-neutral-900/90 border border-neutral-800 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-neutral-300 font-medium flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-amber-400" />
+                  <span>Test System Load Response:</span>
+                </span>
+                <span className="font-mono text-[10px] text-cyan-300 font-bold">
+                  Effective Cap: {telemetry.effectiveFpsCap} FPS ({telemetry.systemLoadStatus})
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 text-[10px]">
+                {[
+                  { id: 'normal', label: 'Nominal', desc: 'Base Target' },
+                  { id: 'moderate', label: 'Mod Load', desc: 'Downscale 1x' },
+                  { id: 'heavy', label: 'Heavy Load', desc: 'Downscale 2x' },
+                  { id: 'overheat', label: 'Thermal', desc: 'Lock 30 FPS' },
+                ].map(load => (
+                  <button
+                    key={load.id}
+                    id={`btn-load-${load.id}`}
+                    onClick={() =>
+                      onUpdateSettings(prev => ({
+                        ...prev,
+                        simulatedSystemLoad: load.id as any,
+                      }))
+                    }
+                    className={`py-1.5 px-1 rounded-lg border text-center transition-all ${
+                      settings.simulatedSystemLoad === load.id
+                        ? load.id === 'overheat'
+                          ? 'bg-rose-500/20 border-rose-400 text-rose-300 font-bold'
+                          : load.id === 'heavy'
+                          ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
+                          : 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold'
+                        : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="font-bold">{load.label}</div>
+                    <div className="text-[8px] opacity-70 font-mono">{load.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -479,113 +554,136 @@ export default function ControlPanel({
               className="w-full accent-cyan-400 cursor-pointer"
             />
           </div>
-        </div>
-      )}
 
-      {/* ================= TAB 3: DUAL LOCK SCREEN & "IT'S LOCKED FOR A REASON" ================= */}
-      {activeTab === 'dual_screen' && (
-        <div className="flex flex-col gap-4 animate-fade-in">
-          <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/30">
-            <div className="flex items-center gap-2 mb-2">
-              <Lock className="w-4 h-4 text-rose-400" />
-              <h4 className="text-xs font-bold text-white">
-                Independent Lock Screen ("It's Locked for a Reason")
-              </h4>
+          {/* Display Color Grading */}
+          <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 flex flex-col gap-3">
+            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
+              <span>AMOLED Display Tuning</span>
+            </h4>
+
+            {/* Brightness */}
+            <div>
+              <div className="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
+                <span>Brightness</span>
+                <span className="font-mono text-neutral-200">{settings.brightness}%</span>
+              </div>
+              <input
+                type="range"
+                min="80"
+                max="130"
+                value={settings.brightness}
+                onChange={e =>
+                  onUpdateSettings(prev => ({ ...prev, brightness: parseInt(e.target.value) }))
+                }
+                className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+              />
             </div>
-            <p className="text-[11px] text-neutral-300 leading-relaxed">
-              Show a distinct high-security animated biometric lock screen, while keeping your dense
-              cyberpunk or anime street wallpaper on the home screen!
-            </p>
-          </div>
 
-          {/* Main Warning Text Input */}
-          <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 flex flex-col gap-2">
-            <label className="text-xs font-bold text-white">Lock Screen Headline Banner</label>
-            <input
-              type="text"
-              id="input-lock-main-text"
-              value={settings.lockScreenMainText}
-              onChange={e =>
-                onUpdateSettings(prev => ({ ...prev, lockScreenMainText: e.target.value }))
-              }
-              placeholder="IT'S LOCKED FOR A REASON"
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-rose-300 font-mono focus:border-rose-400 outline-none"
-            />
-          </div>
-
-          {/* Subtitle Warning Input */}
-          <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 flex flex-col gap-2">
-            <label className="text-xs font-bold text-white">Lock Screen Subtitle / Status</label>
-            <input
-              type="text"
-              id="input-lock-sub-text"
-              value={settings.lockScreenSubText}
-              onChange={e =>
-                onUpdateSettings(prev => ({ ...prev, lockScreenSubText: e.target.value }))
-              }
-              placeholder="BIOMETRIC VAULT ENGAGED"
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-neutral-300 font-mono focus:border-rose-400 outline-none"
-            />
-          </div>
-
-          {/* Screen Assignment Summary */}
-          <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 flex flex-col gap-2 text-xs">
-            <div className="flex items-center justify-between py-1 border-b border-neutral-800">
-              <span className="text-neutral-400">Lock Screen Wallpaper:</span>
-              <span className="font-bold text-rose-400 font-mono">
-                {settings.lockScreenWallpaperId}
-              </span>
+            {/* Contrast */}
+            <div>
+              <div className="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
+                <span>Contrast</span>
+                <span className="font-mono text-neutral-200">{settings.contrast}%</span>
+              </div>
+              <input
+                type="range"
+                min="80"
+                max="140"
+                value={settings.contrast}
+                onChange={e =>
+                  onUpdateSettings(prev => ({ ...prev, contrast: parseInt(e.target.value) }))
+                }
+                className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+              />
             </div>
-            <div className="flex items-center justify-between py-1">
-              <span className="text-neutral-400">Home Screen Wallpaper:</span>
-              <span className="font-bold text-cyan-400 font-mono">
-                {settings.homeScreenWallpaperId}
-              </span>
+
+            {/* Saturation */}
+            <div>
+              <div className="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
+                <span>Vibrance / Saturation</span>
+                <span className="font-mono text-neutral-200">{settings.saturation}%</span>
+              </div>
+              <input
+                type="range"
+                min="80"
+                max="150"
+                value={settings.saturation}
+                onChange={e =>
+                  onUpdateSettings(prev => ({ ...prev, saturation: parseInt(e.target.value) }))
+                }
+                className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= TAB 4: POCO PRO 5G / MIUI / HYPEROS COMPATIBILITY GUIDE ================= */}
+      {/* ================= TAB 3: POCO PRO 5G / MIUI / HYPEROS COMPATIBILITY GUIDE ================= */}
       {activeTab === 'poco_guide' && (
         <div className="flex flex-col gap-3 animate-fade-in text-xs text-neutral-300">
-          <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30">
-            <div className="flex items-center gap-2 mb-1 text-amber-400 font-bold">
+          <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/40">
+            <div className="flex items-center gap-2 mb-1 text-cyan-400 font-bold">
               <Smartphone className="w-4 h-4" />
-              <span>POCO Pro 5G (MIUI / HyperOS) Optimization</span>
+              <span>No PC Needed! 3 Ways to Set Live Video Wallpapers on POCO</span>
             </div>
             <p className="text-[11px] text-neutral-300">
-              Xiaomi MIUI/HyperOS has aggressive background killers and lock screen restrictions.
-              Follow these exact 3 toggles on your POCO phone:
+              POCO (HyperOS &amp; MIUI) has built-in 60–90 FPS hardware live wallpaper engines right on your phone without needing a computer:
             </p>
           </div>
 
-          <div className="space-y-2">
-            <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800">
-              <strong className="text-cyan-400 block mb-1">
-                1. Allow Lock Screen Live Wallpaper
+          <div className="space-y-2.5">
+            {/* Method 1: Built-in POCO Gallery (Direct & Instant) */}
+            <div className="p-3.5 rounded-2xl bg-neutral-950 border border-emerald-500/30">
+              <div className="flex items-center justify-between mb-1">
+                <strong className="text-emerald-400 flex items-center gap-1.5 font-bold">
+                  <span>Method 1: Built-in POCO Gallery (Fastest • No App Needed)</span>
+                </strong>
+                <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 text-[9px] font-mono font-bold">
+                  Recommended
+                </span>
+              </div>
+              <ol className="text-[11px] text-neutral-300 space-y-1 list-decimal list-inside leading-relaxed mt-1.5">
+                <li>Open the built-in <strong>Gallery</strong> app on your POCO phone.</li>
+                <li>Tap on your video (max 30 seconds).</li>
+                <li>Tap the <strong>More (3 dots •••)</strong> menu at the bottom right corner.</li>
+                <li>Select <strong>"Set video wallpaper"</strong>.</li>
+                <li>Turn sound off (sound icon on top) and tap <strong>"Apply" &gt; "Set for Home screen"</strong>.</li>
+              </ol>
+            </div>
+
+            {/* Method 2: Free Google Play Store Wallpaper Engines */}
+            <div className="p-3.5 rounded-2xl bg-neutral-950 border border-cyan-500/30">
+              <strong className="text-cyan-400 block mb-1 font-bold">
+                Method 2: Install a Live Wallpaper Engine from Google Play Store
               </strong>
-              <span>
-                Go to Settings &gt; Wallpaper &gt; Live Wallpapers &gt; Select this Engine &gt; Tap{' '}
-                <strong>"Set for both Home screen and Lock screen"</strong> (or apply via POCO
-                Themes app).
-              </span>
+              <p className="text-[11px] text-neutral-300 mb-1.5">
+                If you want advanced loop controls, trim sliders, and 90Hz hardware scaling directly on your phone:
+              </p>
+              <ol className="text-[11px] text-neutral-300 space-y-1 list-decimal list-inside leading-relaxed">
+                <li>Open <strong>Google Play Store</strong> on your POCO device.</li>
+                <li>Search for <strong>"Video Live Wallpaper"</strong> (by NAING GROUP) or <strong>"Wallpaper Engine"</strong>.</li>
+                <li>Open the app, pick your video file from your phone storage, and tap <strong>Set as Wallpaper</strong>.</li>
+              </ol>
             </div>
 
-            <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800">
-              <strong className="text-cyan-400 block mb-1">2. Exclude from MIUI Battery Saver</strong>
-              <span>
-                Settings &gt; Apps &gt; Manage Apps &gt; Poco Live Wallpaper &gt; Battery Saver &gt;
-                Select <strong>"No restrictions"</strong> so it never stutters.
-              </span>
+            {/* Method 3: PWA / Standalone HTML Directly on Mobile Chrome */}
+            <div className="p-3.5 rounded-2xl bg-neutral-950 border border-neutral-800">
+              <strong className="text-amber-400 block mb-1 font-bold">
+                Method 3: Direct Web App / Standalone HTML (Phone Browser)
+              </strong>
+              <ol className="text-[11px] text-neutral-300 space-y-1 list-decimal list-inside leading-relaxed">
+                <li>In <strong>Kotlin APK</strong> tab, tap <strong>"Download .HTML"</strong> right on your phone.</li>
+                <li>Open the downloaded HTML in <strong>Chrome</strong> on your POCO device.</li>
+                <li>Tap Chrome menu (⋮) &gt; <strong>"Add to Home screen" / "Install App"</strong> to run as a fullscreen live interactive wallpaper engine!</li>
+              </ol>
             </div>
 
-            <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800">
-              <strong className="text-cyan-400 block mb-1">3. Emergency Kill Switch Tile</strong>
-              <span>
-                Pull down MIUI Control Center &gt; Tap Edit &gt; Add the{' '}
-                <strong>"Kill Wallpaper"</strong> Quick Settings tile. If an app ever lags, 1 tap
-                terminates it immediately.
+            {/* MIUI Battery Optimization Tip */}
+            <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 text-[11px]">
+              <strong className="text-neutral-200 block mb-0.5">POCO Battery &amp; Smoothness Tip:</strong>
+              <span className="text-neutral-400">
+                In Settings &gt; Apps &gt; Manage Apps &gt; Set Battery Saver to <strong>"No restrictions"</strong> for seamless 90 FPS performance without throttling.
               </span>
             </div>
           </div>
@@ -626,26 +724,99 @@ export default function ControlPanel({
             </button>
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-white flex items-center gap-1.5">
-              <Code2 className="w-4 h-4 text-emerald-400" />
-              <span>Native Android Kotlin (PocoLiveWallpaperService.kt)</span>
-            </span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(KOTLIN_SAMPLE_CODE);
-                setCopiedCode(true);
-                setTimeout(() => setCopiedCode(false), 2500);
-              }}
-              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              <Copy className="w-3 h-3" />
-              <span>{copiedCode ? 'Copied to Clipboard!' : 'Copy Kotlin Code'}</span>
-            </button>
-          </div>
+          {/* Native Android Project Files & Tabs */}
+          <div className="flex flex-col gap-3">
+            {/* 100% Clean Ad-Free Installation Guide */}
+            <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/40">
+              <div className="flex items-center gap-2 mb-1.5 text-emerald-400 font-bold">
+                <Check className="w-4 h-4" />
+                <span>📱 100% Clean &amp; Ad-Free Installation on Your POCO Phone</span>
+              </div>
+              <p className="text-[11px] text-neutral-300 mb-2 leading-relaxed">
+                Do not use third-party tools like AppsGeyser as they inject unwanted advertising banners. Instead, install this clean, ad-free standalone app directly on your phone:
+              </p>
+              <ol className="text-[11px] text-neutral-300 space-y-1.5 list-decimal list-inside leading-relaxed bg-neutral-950 p-3 rounded-xl border border-neutral-800">
+                <li>Tap the green <strong className="text-emerald-400">"Install App (0 Ads)"</strong> button at the top of your screen, OR tap Chrome menu (<strong>⋮</strong>).</li>
+                <li>Tap <strong>"Install app"</strong> / <strong>"Add to Home screen"</strong>.</li>
+                <li>Open the newly added <strong>POCO Engine</strong> app icon from your home screen — it runs in 100% fullscreen, 60–90 FPS hardware mode with <strong>zero ads and zero subscriptions</strong>.</li>
+              </ol>
+            </div>
 
-          <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-neutral-300 max-h-72 overflow-y-auto leading-relaxed">
-            <pre className="whitespace-pre-wrap">{KOTLIN_SAMPLE_CODE}</pre>
+            <div className="p-3.5 rounded-2xl bg-neutral-950 border border-neutral-800">
+              <h4 className="text-xs font-bold text-white mb-1.5 flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-emerald-400" />
+                <span>Native Android Studio Project Code (Optional For Devs)</span>
+              </h4>
+              <p className="text-[11px] text-neutral-400 mb-2">
+                If you ever want to compile raw Kotlin/Java bytecode manually in Android Studio:
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Code2 className="w-4 h-4 text-emerald-400" />
+                <span>1. PocoLiveWallpaperService.kt</span>
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(KOTLIN_SAMPLE_CODE);
+                  setCopiedCode(true);
+                  setTimeout(() => setCopiedCode(false), 2500);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Copy className="w-3 h-3" />
+                <span>{copiedCode ? 'Copied!' : 'Copy Kotlin'}</span>
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-neutral-300 max-h-56 overflow-y-auto leading-relaxed">
+              <pre className="whitespace-pre-wrap">{KOTLIN_SAMPLE_CODE}</pre>
+            </div>
+
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Code2 className="w-4 h-4 text-cyan-400" />
+                <span>2. AndroidManifest.xml</span>
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(ANDROID_MANIFEST_CODE);
+                  setCopiedCode(true);
+                  setTimeout(() => setCopiedCode(false), 2500);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Copy className="w-3 h-3" />
+                <span>Copy Manifest</span>
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-neutral-300 max-h-40 overflow-y-auto leading-relaxed">
+              <pre className="whitespace-pre-wrap">{ANDROID_MANIFEST_CODE}</pre>
+            </div>
+
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Code2 className="w-4 h-4 text-amber-400" />
+                <span>3. res/xml/wallpaper.xml</span>
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(WALLPAPER_XML_CODE);
+                  setCopiedCode(true);
+                  setTimeout(() => setCopiedCode(false), 2500);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Copy className="w-3 h-3" />
+                <span>Copy XML</span>
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-neutral-300 max-h-28 overflow-y-auto leading-relaxed">
+              <pre className="whitespace-pre-wrap">{WALLPAPER_XML_CODE}</pre>
+            </div>
           </div>
         </div>
       )}
@@ -662,10 +833,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 
 /**
- * High-Efficiency POCO Pro 5G 60 FPS Ping-Pong Wallpaper Service
+ * High-Efficiency POCO Pro 5G Live Wallpaper Service (60-90 FPS)
  * - Zero Audio Track loaded
  * - Zero Touch interception (Passes directly to MIUI Control Center)
- * - Hardware MediaCodec Surface decoding with Ping-Pong reversal
+ * - Hardware MediaCodec Surface decoding with seamless continuous loop
  */
 class PocoLiveWallpaperService : WallpaperService() {
 
@@ -675,7 +846,6 @@ class PocoLiveWallpaperService : WallpaperService() {
 
     inner class VideoWallpaperEngine : Engine(), Player.Listener {
         private var exoPlayer: ExoPlayer? = null
-        private var isReverse = false
         private var killSwitchActive = false
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
@@ -698,13 +868,14 @@ class PocoLiveWallpaperService : WallpaperService() {
 
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
-            initializePingPongPlayer(holder)
+            initializeVideoPlayer(holder)
         }
 
-        private fun initializePingPongPlayer(holder: SurfaceHolder) {
+        private fun initializeVideoPlayer(holder: SurfaceHolder) {
             exoPlayer = ExoPlayer.Builder(applicationContext).build().apply {
                 // Completely mute and ignore audio buffers
                 volume = 0f
+                repeatMode = Player.REPEAT_MODE_ALL
                 setVideoSurface(holder.surface)
                 addListener(this@VideoWallpaperEngine)
                 prepare()
@@ -713,7 +884,6 @@ class PocoLiveWallpaperService : WallpaperService() {
 
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_ENDED) {
-                // Ping-Pong: Reverse playback seek without jump-cuts
                 exoPlayer?.seekTo(0)
                 exoPlayer?.play()
             }
@@ -726,3 +896,40 @@ class PocoLiveWallpaperService : WallpaperService() {
         }
     }
 }`;
+
+const ANDROID_MANIFEST_CODE = `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.poco.wallpaper">
+
+    <uses-feature
+        android:name="android.software.live_wallpaper"
+        android:required="true" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="POCO Live Wallpaper"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Design.NoActionBar">
+
+        <service
+            android:name=".PocoLiveWallpaperService"
+            android:exported="true"
+            android:label="POCO 60FPS Video Wallpaper"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper" />
+        </service>
+
+    </application>
+</manifest>`;
+
+const WALLPAPER_XML_CODE = `<?xml version="1.0" encoding="utf-8"?>
+<wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/wallpaper_description"
+    android:thumbnail="@drawable/preview_thumbnail" />`;

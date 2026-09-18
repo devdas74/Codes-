@@ -2,7 +2,7 @@
  * Type definitions for Poco Live Wallpaper Engine
  */
 
-export type FpsTarget = 24 | 30 | 60;
+export type FpsTarget = 30 | 45 | 60 | 90;
 
 export type WallpaperCategory = 'cyberpunk_city' | 'tokyo_street' | 'anime_scenery' | 'lock_screen' | 'custom';
 
@@ -22,7 +22,8 @@ export interface WallpaperItem {
 
 export interface EngineSettings {
   fpsTarget: FpsTarget;
-  pingPongLoop: boolean; // Play in reverse upon reaching end
+  autoFpsMode: boolean; // Dynamic Adaptive Refresh Rate under system load / thermal throttling
+  simulatedSystemLoad: 'normal' | 'moderate' | 'heavy' | 'overheat'; // Load simulator for testing
   playbackSpeed: number; // 0.5x to 2.0x
   trimStartSec: number;
   trimEndSec: number;
@@ -49,13 +50,14 @@ export interface EngineSettings {
 
 export interface EngineTelemetry {
   currentFps: number;
+  effectiveFpsCap: number; // Dynamic throttled cap when under load
   frameTimeMs: number;
-  direction: 'forward' | 'reverse';
   progress: number; // 0.0 to 1.0
   loopCount: number;
   batteryDrainPerHour: number; // Estimated % / hour on Poco Pro 5G (5000mAh)
   decoderMemoryMb: number;
   isObscured: boolean; // True when app opened or screen turned off
+  systemLoadStatus: 'Nominal' | 'Moderate Load (-25%)' | 'Heavy Load (-50%)' | 'Thermal Throttled (-66%)';
 }
 
 export interface PocoDeviceSpecs {
