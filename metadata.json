@@ -1,0 +1,6 @@
+{
+  "name": "Poco Live Wallpaper Engine",
+  "description": "Ultra-optimized 60 FPS live video wallpaper engine for Android & POCO Pro 5G with ping-pong reverse looping, dual lock/home screen themes, and emergency kill-switch.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
